@@ -1,0 +1,17 @@
+version: '3.9'
+services:
+    docs-api:
+      container_name: docs-api-dev
+      image: docs-api:latest
+      volumes:
+        - ./app:/src/app
+      ports:
+        - "8091:8091"
+      env_file:
+        - ../file_scraper.env
+      networks:
+        - net
+      command: tail -f /src/requirements.txt
+
+networks:
+  net:
