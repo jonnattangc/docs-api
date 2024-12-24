@@ -1,0 +1,18 @@
+version: '3.9'
+services:
+    docs-api:
+      container_name: docs-api-dev
+      image: docs-api:dev
+      volumes:
+        - ./app:/src/app
+      ports:
+        - "8080:8080"
+        - "8091:8091"
+      env_file:
+        - ../file_docs.env
+      networks:
+        - net
+      command: tail -f /src/requirements.txt
+
+networks:
+  net:

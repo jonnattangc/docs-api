@@ -1,0 +1,4 @@
+# Ignore everything
+**
+!requirements.txt
+!./app/run.sh
