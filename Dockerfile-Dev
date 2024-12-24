@@ -23,7 +23,7 @@ RUN apt-get update -y && \
     apt-get install -y python3-dev && \
     apt-get install -y cargo
 
-EXPOSE 8091
+EXPOSE 8080
 
-CMD [ "python", "http-server.py", "8091"]
+CMD [ "python", "http-server.py", "8080"]
     

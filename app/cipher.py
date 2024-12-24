@@ -3,6 +3,7 @@ try:
     import sys
     import os
     from Crypto.Cipher import AES
+    from Crypto import Random
     import base64
 
 except ImportError:
@@ -19,10 +20,11 @@ class Cipher() :
     def __init__(self, ) :
         key = os.environ.get('AES_KEY','None')
         self.aes_key = key.encode('utf-8')[:32]
-        self.iv = b'1234567890123456'
+        self.iv = b'1234567890123456' # Random.new().read(AES.block_size)
 
     def __del__(self):
         self.aes_key = None
+        self.iv = None
         
     def complete( self, data_str : str ) :
         response : str = data_str
@@ -58,6 +60,7 @@ class Cipher() :
             data_clear = cipher.decrypt(data_cipher) # se desencriptan los bytes
             if data_clear != None :
                 data_clear_str = data_clear.decode() # se llega la cadeba de bytes a texto
+                data_clear_str = data_clear_str.strip()
         except Exception as e:
             print("ERROR Decipher:", e)
             data_clear_str = None

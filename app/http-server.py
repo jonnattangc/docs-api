@@ -54,7 +54,7 @@ csrf.init_app(app)
 
 auth = HTTPBasicAuth()
 # cors = CORS(app, resources={r"/page/*": {"origins": ["*"]}})
-cors = CORS(app, resources={r"/scraper/*": {"origins": ["dev.jonnattan.com"]}})
+cors = CORS(app, resources={r"/drive/*": {"origins": ["dev.jonnattan.com"]}})
 # ===============================================================================
 # variables globales
 # ===============================================================================
@@ -107,9 +107,9 @@ def unauthorized():
 @auth.login_required
 def process_drive(subpath):
     drive = DriverDocs( str(ROOT_DIR) )
-    data, code = drive.request_process( request, subpath )
+    data_response, http_code = drive.request_process( request, subpath )
     del drive
-    return data, code
+    return jsonify(data_response), http_code
 
 # ===============================================================================
 # Favicon
