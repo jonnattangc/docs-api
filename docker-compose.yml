@@ -1,16 +1,16 @@
 version: "3.9"
 services:
-    python-server:
-      container_name: scraper
+    docs-api:
+      container_name: docs-api
       # Crea la imagen con el archivo Dockerfile de esta misma carpeta
-      image: scraper:v1.0
+      image: docs-img:1.0
       restart: always
       volumes:
         - ./app:/home/jonnattan/app
       ports:
-        - "8090:8090"
+        - "8080:8080"
       env_file:
-        - ../file_scraper.env
+        - ../file_docs.env
       networks:
         - db-net
 networks:

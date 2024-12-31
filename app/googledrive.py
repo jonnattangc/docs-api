@@ -151,7 +151,7 @@ class DriverDocs () :
         http_code  = 200
         data_response = None
         response =  {"message" : message, "data": data_response}
-
+        json_data = None
         logging.info("Reciv " + str(request.method) + " Contex: /drive/" + str(subpath) )
         #logging.info("Reciv Header :\n" + str(request.headers) )
         #logging.info("Reciv Data: " + str(request.data) )
