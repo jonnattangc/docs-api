@@ -51,7 +51,7 @@ RUN pip install --no-cache-dir --no-index --find-links=file:///home/jonnattan/di
 
 WORKDIR /home/jonnattan/app
 
-EXPOSE 8081
+EXPOSE 8096
 
-CMD [ "python", "http-server.py", "8081"]
+CMD [ "python", "http-server.py", "8096"]
     

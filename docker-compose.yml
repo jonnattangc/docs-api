@@ -8,7 +8,7 @@ services:
       volumes:
         - ./app:/home/jonnattan/app
       ports:
-        - "8080:8080"
+        - "8095:8095"
       env_file:
         - ../file_docs.env
       networks:

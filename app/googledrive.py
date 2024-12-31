@@ -49,6 +49,8 @@ class DriverDocs () :
 
     def login(self):
         credentials = None
+        http_code  = 200
+        message = None
         try:
             GoogleAuth.DEFAULT_SETTINGS['client_config_file'] = self.credential_file
             gauth = GoogleAuth()
@@ -65,8 +67,10 @@ class DriverDocs () :
             gauth.SaveCredentialsFile(self.credential_file)
             credentials = GoogleDrive(gauth)
         except Exception as e :
-           print("ERROR list_folder():", e)
-        return credentials
+           print("ERROR login(): ", e)
+           http_code  = 500
+           message = str(e)
+        return credentials, http_code, message
 
     def list_folder (self, json_data ) :
         msg = 'Servicio ejecutado correctamente'
@@ -74,7 +78,9 @@ class DriverDocs () :
         files = []
         try:
             folder_id = json_data["folder_id"]
-            drive = self.login()
+            drive, code, msg = self.login()
+            if code != 200 :
+                return msg, code, files
             query = "'{}' in parents".format(folder_id)
             # logging.info('Query: ' + str(query))
             files_list = drive.ListFile({'q': query}).GetList()
@@ -94,7 +100,9 @@ class DriverDocs () :
         try:
             folder_id = json_data["folder_id"]
             file_name = json_data["file_name"]
-            drive = self.login()
+            drive, code, msg = self.login()
+            if code != 200 :
+                return msg, code, files
             query = "'{}' in parents".format(folder_id)
             files_list = drive.ListFile({'q': query}).GetList()
             for f in files_list:
@@ -114,7 +122,9 @@ class DriverDocs () :
         data_rx = None
         try:
             file_id = json_data["file_id"]
-            drive = self.login()
+            drive, code, msg = self.login()
+            if code != 200 :
+                return msg, code, data_rx
             query = "'id':'{}'".format(str(file_id))
             logging.info('Query: ' + str(query))
             file = drive.CreateFile({'id': file_id}) 
@@ -152,14 +162,19 @@ class DriverDocs () :
         data_response = None
         response =  {"message" : message, "data": data_response}
         json_data = None
-        logging.info("Reciv " + str(request.method) + " Contex: /drive/" + str(subpath) )
+        logging.info("Reciv " + str(request.method) + " Contex: /docs/drive/" + str(subpath) )
         #logging.info("Reciv Header :\n" + str(request.headers) )
         #logging.info("Reciv Data: " + str(request.data) )
         rx_api_key = request.headers.get('x-api-key')
+        if rx_api_key == None :
+            response = {"message" : "No autorizado", "data": data_response }
+            http_code  = 401
+            return  response, http_code
         if str(rx_api_key) != str(self.api_key) :
             response = {"message" : "No autorizado", "data": data_response }
             http_code  = 401
             return  response, http_code
+        
         request_data = request.get_json()
         request_type = None
         data_rx = None
@@ -186,7 +201,7 @@ class DriverDocs () :
         logging.info("JSON :" + str(json_data) )
         if request.method == 'POST' :
             if str(subpath).find('login') >= 0 :
-                credentials = self.login()
+                credentials, http_code, message = self.login()
                 logging.info("Login :" + str(credentials) )
             if str(subpath).find('list') >= 0 :
                message, http_code, data_response = self.list_folder(json_data)

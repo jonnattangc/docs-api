@@ -53,8 +53,7 @@ csrf = CSRFProtect()
 csrf.init_app(app)
 
 auth = HTTPBasicAuth()
-# cors = CORS(app, resources={r"/page/*": {"origins": ["*"]}})
-cors = CORS(app, resources={r"/drive/*": {"origins": ["dev.jonnattan.com"]}})
+cors = CORS(app, resources={r"/docs/*": {"origins": ["dev.jonnattan.com"]}})
 # ===============================================================================
 # variables globales
 # ===============================================================================
@@ -63,12 +62,14 @@ ROOT_DIR = os.path.dirname(__file__)
 #===============================================================================
 # Redirige
 #===============================================================================
-@app.route('/drive', methods=['GET', 'POST'])
+@app.route('/docs', methods=['GET', 'POST'])
 @csrf.exempt
 def index():
-    logging.info("Reciv solicitude endpoint: /" )
     return redirect('/info'), 302
-
+@app.route('/docs/<path:subpath>', methods=['POST', 'GET'])
+@csrf.exempt
+def other():
+    return redirect('/info'), 302
 #===============================================================================
 # Informaci'on
 #===============================================================================
@@ -77,8 +78,8 @@ def index():
 def info_proccess():
     return jsonify({
         "Servidor": "dev.jonnattan.com",
-        "Nombre": "API de Scrapper para distitnas cosas",
-        "Docs":"proximamente"
+        "Nombre": "API de Documentos para distitos repos",
+        "Support":"Drive"
     })
 #===============================================================================
 # Metodo solicitado por la biblioteca de autenticaci'on b'asica
@@ -102,7 +103,7 @@ def unauthorized():
 # ==============================================================================
 # Procesa peticiones de la pagina de la logia
 # ==============================================================================
-@app.route('/drive/<path:subpath>', methods=['POST', 'GET'])
+@app.route('/docs/drive/<path:subpath>', methods=['POST', 'GET'])
 @csrf.exempt
 @auth.login_required
 def process_drive(subpath):

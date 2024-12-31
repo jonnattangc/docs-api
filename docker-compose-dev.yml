@@ -6,7 +6,7 @@ services:
       volumes:
         - ./app:/src/app
       ports:
-        - "8081:8081"
+        - "8096:8096"
       env_file:
         - ../file_docs.env
       networks:
