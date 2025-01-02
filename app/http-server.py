@@ -93,9 +93,9 @@ def verify_password(username, password):
         del basicAuth
     return user
 
-#===============================================================================
+#==================================================================================
 # Implementacion del handler que respondera el error en caso de mala autenticacion
-#===============================================================================
+#==================================================================================
 @auth.error_handler
 def unauthorized():
     return make_response(jsonify({'message':'invalid credentials'}), 401)

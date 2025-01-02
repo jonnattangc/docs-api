@@ -7,6 +7,7 @@ try:
     import json
     from cipher import Cipher
     from flask import jsonify
+    import base64
     from pydrive2.auth import GoogleAuth
     from pydrive2.drive import GoogleDrive
     from pydrive2.files import FileNotUploadedError
@@ -26,13 +27,17 @@ class DriverDocs () :
     api_key = None
     cipher = None
     credential_file = None
+    docs_folder = None
     def __init__(self, root_dir : str = str(ROOT_DIR)) :
         try:
             self.root_dir = root_dir
             self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
             name_file = str(os.environ.get('GOOGLE_CREDENTIALS_JSON','None'))
             if name_file != "None":
-                self.credential_file = root_dir + "/" + name_file
+                self.credential_file = root_dir + name_file
+            work_dir = str(os.environ.get('DOCS_WORK_DIR','None'))
+            if work_dir != None :
+                self.docs_folder = root_dir + work_dir
             self.cipher = Cipher()
         except Exception as e :
             print("ERROR :", e)
@@ -64,6 +69,7 @@ class DriverDocs () :
             else:
                 logging.info("Auth Ok" )
                 gauth.Authorize()
+                message = "Authentication Ok"
             gauth.SaveCredentialsFile(self.credential_file)
             credentials = GoogleDrive(gauth)
         except Exception as e :
@@ -78,9 +84,9 @@ class DriverDocs () :
         files = []
         try:
             folder_id = json_data["folder_id"]
-            drive, code, msg = self.login()
+            drive, code, error_msg = self.login()
             if code != 200 :
-                return msg, code, files
+                return error_msg, code, files
             query = "'{}' in parents".format(folder_id)
             # logging.info('Query: ' + str(query))
             files_list = drive.ListFile({'q': query}).GetList()
@@ -100,9 +106,9 @@ class DriverDocs () :
         try:
             folder_id = json_data["folder_id"]
             file_name = json_data["file_name"]
-            drive, code, msg = self.login()
+            drive, code, error_msg = self.login()
             if code != 200 :
-                return msg, code, files
+                return error_msg, code, files
             query = "'{}' in parents".format(folder_id)
             files_list = drive.ListFile({'q': query}).GetList()
             for f in files_list:
@@ -122,16 +128,28 @@ class DriverDocs () :
         data_rx = None
         try:
             file_id = json_data["file_id"]
-            drive, code, msg = self.login()
+            drive, code, error_msg = self.login()
             if code != 200 :
-                return msg, code, data_rx
+                return error_msg, code, data_rx
             query = "'id':'{}'".format(str(file_id))
-            logging.info('Query: ' + str(query))
+            logging.info('[read_file] query: ' + str(query))
             file = drive.CreateFile({'id': file_id}) 
             file_name = file['title']
-            logging.info('File: ' + str(file))
-            path_file = self.root_dir + "/static/" + file_name
-            file.GetContentFile(path_file)
+            logging.info('File GoogleDrive Object: ' + str(file))
+            
+            path_file = None
+            file_b64 = None
+            only_read : bool = json_data["only_read"]
+            if not only_read : 
+                path_file = self.docs_folder + file_name
+                file.GetContentFile(path_file)
+                base_64 : bool = json_data["base64"]
+                file_bytes = None
+                if base_64 :
+                    with open(path_file, "rb") as pdf_file:
+                        file_bytes = base64.b64encode(pdf_file.read())
+                    if file_bytes != None :
+                        file_b64 = file_bytes.decode('utf-8')
             
             links = None 
             try :
@@ -143,6 +161,7 @@ class DriverDocs () :
             data_rx = {
               "link": file['embedLink'],
               "internal_route": path_file,
+              "file_b64": file_b64,
               "title": file['title'],
               "size_bytes": file['fileSize'],
               "created_date": file['createdDate'],
