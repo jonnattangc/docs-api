@@ -13,5 +13,6 @@ services:
         - ../file_docs.env
       networks:
         - db-net
+      command: tail -f /home/jonnattan/app/http-server.py
 networks:
   db-net:

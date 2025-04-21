@@ -15,6 +15,7 @@ try:
     # Clases personales
     from security import Security
     from googledrive import DriverDocs
+    from api_docu import ApiDocs
 
 except ImportError:
 
@@ -110,6 +111,24 @@ def process_drive(subpath):
     drive = DriverDocs( str(ROOT_DIR) )
     data_response, http_code = drive.request_process( request, subpath )
     del drive
+    return jsonify(data_response), http_code
+
+@app.route('/docs/api', methods=['POST', 'GET'])
+@csrf.exempt
+@auth.login_required
+def process_api_only():
+    api = ApiDocs()
+    data_response, http_code = api.request_process( request, '' )
+    del api
+    return jsonify(data_response), http_code
+
+@app.route('/docs/api/<path:subpath>', methods=['POST', 'GET'])
+@csrf.exempt
+@auth.login_required
+def process_api(subpath):
+    api = ApiDocs()
+    data_response, http_code = api.request_process( request, subpath )
+    del api
     return jsonify(data_response), http_code
 
 # ===============================================================================

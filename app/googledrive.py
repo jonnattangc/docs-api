@@ -88,8 +88,18 @@ class DriverDocs () :
             if code != 200 :
                 return error_msg, code, files
             query = "'{}' in parents".format(folder_id)
-            # logging.info('Query: ' + str(query))
+            filters = []
+            try :
+                filters = json_data["filters"]
+            except Exception as e :
+                filters = []
+            if filters != None and len(filters) > 0 :
+                for f in filters :
+                    query += " and {} {} '{}'".format(str(f["filter_name"]), str(f["comparation"]), str(f["filter_value"]))
+                logging.info('Query whit Filters: ' + str(query))
+            
             files_list = drive.ListFile({'q': query}).GetList()
+            logging.info('Response ' + str(len(files_list)) + ' elementos')
             for f in files_list:
                 files.append(f)
         except Exception as e :
@@ -104,17 +114,39 @@ class DriverDocs () :
         code = 200
         files = []
         try:
-            folder_id = json_data["folder_id"]
-            file_name = json_data["file_name"]
             drive, code, error_msg = self.login()
             if code != 200 :
                 return error_msg, code, files
+            
+            folder_id : str = json_data["folder_id"]
             query = "'{}' in parents".format(folder_id)
+            
+            filters = []
+            try :
+                filters = json_data["filters"]
+            except Exception as e :
+                filters = []
+            if filters != None and len(filters) > 0 :
+                for f in filters :
+                    query += " and {} {} '{}'".format(str(f["filter_name"]), str(f["comparation"]), str(f["filter_value"]))
+            
+                logging.info('Query whit Filters: ' + str(query))
+            
             files_list = drive.ListFile({'q': query}).GetList()
+
+            only_id : bool = False
+            try :
+                only_id = json_data["only_id"]
+            except Exception as e :
+                only_id = False
+
             for f in files_list:
                 title = f['title']
-                if( title.find(file_name) >= 0 ) :
+                if only_id :
+                    files.append({"id": f['id']})
+                else :
                     files.append(f)
+                break
         except Exception as e :
            print("ERROR search_file():", e)
            code = 500
@@ -127,47 +159,64 @@ class DriverDocs () :
         code = 200
         data_rx = None
         try:
-            file_id = json_data["file_id"]
+            file_id :str = json_data["file_id"]
             drive, code, error_msg = self.login()
             if code != 200 :
                 return error_msg, code, data_rx
-            query = "'id':'{}'".format(str(file_id))
-            logging.info('[read_file] query: ' + str(query))
+
             file = drive.CreateFile({'id': file_id}) 
-            file_name = file['title']
-            logging.info('File GoogleDrive Object: ' + str(file))
+            file_name :str = file['title']
             
-            path_file = None
-            file_b64 = None
-            only_read : bool = json_data["only_read"]
-            if not only_read : 
+            path_file : str = None
+            file_b64 : str = None
+
+            require_detail : bool = False
+            try :
+                require_detail = json_data["require_detail"]
+            except Exception as e :
+                require_detail = False
+
+            doc_required : bool = False
+            try :
+                doc_required = json_data["require_doc"]
+            except Exception as e :
+                doc_required = False
+            
+            if doc_required : 
                 path_file = self.docs_folder + file_name
                 file.GetContentFile(path_file)
-                base_64 : bool = json_data["base64"]
                 file_bytes = None
-                if base_64 :
-                    with open(path_file, "rb") as pdf_file:
-                        file_bytes = base64.b64encode(pdf_file.read())
-                    if file_bytes != None :
-                        file_b64 = file_bytes.decode('utf-8')
+                with open(path_file, "rb") as pdf_file:
+                    file_bytes = base64.b64encode(pdf_file.read())
+                if file_bytes != None :
+                    file_b64 = file_bytes.decode('utf-8')
             
-            links = None 
-            try :
-                if file['exportLinks'] != None :
-                    links = file['exportLinks']
-            except Exception as e :
+            if require_detail :
                 links = None 
+                try :
+                    if file['exportLinks'] != None :
+                        links = file['exportLinks']
+                except Exception as e :
+                    links = None 
 
-            data_rx = {
-              "link": file['embedLink'],
-              "internal_route": path_file,
-              "file_b64": file_b64,
-              "title": file['title'],
-              "size_bytes": file['fileSize'],
-              "created_date": file['createdDate'],
-              "type": file['mimeType'],
-              "other_links": links,
-            }
+                data_rx = {
+                    "link": file['embedLink'],
+                    "internal_route": path_file,
+                    "file_b64": file_b64,
+                    "title": file_name,
+                    "size_bytes": file['fileSize'],
+                    "created_date": file['createdDate'],
+                    "type": file['mimeType'],
+                    "other_links": links,
+                }
+            else :
+                data_rx = {
+                    "title": file_name,
+                    "size_bytes": file['fileSize'],
+                    "type": file['mimeType'],
+                    "file_b64": file_b64
+                }
+
         except Exception as e :
            print("ERROR read_file():", e)
            code = 500
