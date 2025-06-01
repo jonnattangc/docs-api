@@ -26,8 +26,8 @@ class DriverDocs () :
     root_dir = None
     api_key = None
     cipher = None
-    credential_file = None
-    docs_folder = None
+    credential_file : str = None
+    docs_folder: str = None
     def __init__(self, root_dir : str = str(ROOT_DIR)) :
         try:
             self.root_dir = root_dir
@@ -35,9 +35,11 @@ class DriverDocs () :
             name_file = str(os.environ.get('GOOGLE_CREDENTIALS_JSON','None'))
             if name_file != "None":
                 self.credential_file = root_dir + name_file
+                logging.info("Credentials file: " + str(self.credential_file) )
             work_dir = str(os.environ.get('DOCS_WORK_DIR','None'))
             if work_dir != None :
                 self.docs_folder = root_dir + work_dir
+                logging.info("Docs work folder: " + str(self.docs_folder) )
             self.cipher = Cipher()
         except Exception as e :
             print("ERROR :", e)
@@ -74,7 +76,7 @@ class DriverDocs () :
             credentials = GoogleDrive(gauth)
         except Exception as e :
            print("ERROR login(): ", e)
-           http_code  = 500
+           http_code  = 401
            message = str(e)
         return credentials, http_code, message
 

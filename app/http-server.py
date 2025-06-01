@@ -16,6 +16,7 @@ try:
     from security import Security
     from googledrive import DriverDocs
     from api_docu import ApiDocs
+    from aws_s3 import Aws
 
 except ImportError:
 
@@ -102,7 +103,7 @@ def unauthorized():
     return make_response(jsonify({'message':'invalid credentials'}), 401)
 
 # ==============================================================================
-# Procesa peticiones de la pagina de la logia
+# Procesa peticiones de docs en drive
 # ==============================================================================
 @app.route('/docs/drive/<path:subpath>', methods=['POST', 'GET'])
 @csrf.exempt
@@ -111,6 +112,18 @@ def process_drive(subpath):
     drive = DriverDocs( str(ROOT_DIR) )
     data_response, http_code = drive.request_process( request, subpath )
     del drive
+    return jsonify(data_response), http_code
+
+# ==============================================================================
+# Procesa peticiones de docs en s3
+# ==============================================================================
+@app.route('/docs/s3/<path:subpath>', methods=['POST', 'GET'])
+@csrf.exempt
+@auth.login_required
+def process_s3(subpath):
+    aws = Aws( )
+    data_response, http_code = aws.request_process( request, str(subpath) )
+    del aws
     return jsonify(data_response), http_code
 
 @app.route('/docs/api', methods=['POST', 'GET'])
