@@ -15,6 +15,8 @@ try:
     # Clases personales
     from security import Security
     from googledrive import DriverDocs
+    from api_docu import ApiDocs
+    from aws_s3 import Aws
 
 except ImportError:
 
@@ -53,8 +55,7 @@ csrf = CSRFProtect()
 csrf.init_app(app)
 
 auth = HTTPBasicAuth()
-# cors = CORS(app, resources={r"/page/*": {"origins": ["*"]}})
-cors = CORS(app, resources={r"/drive/*": {"origins": ["dev.jonnattan.com"]}})
+cors = CORS(app, resources={r"/docs/*": {"origins": ["dev.jonnattan.com"]}})
 # ===============================================================================
 # variables globales
 # ===============================================================================
@@ -63,12 +64,14 @@ ROOT_DIR = os.path.dirname(__file__)
 #===============================================================================
 # Redirige
 #===============================================================================
-@app.route('/drive', methods=['GET', 'POST'])
+@app.route('/docs', methods=['GET', 'POST'])
 @csrf.exempt
 def index():
-    logging.info("Reciv solicitude endpoint: /" )
     return redirect('/info'), 302
-
+@app.route('/docs/<path:subpath>', methods=['POST', 'GET'])
+@csrf.exempt
+def other():
+    return redirect('/info'), 302
 #===============================================================================
 # Informaci'on
 #===============================================================================
@@ -77,8 +80,8 @@ def index():
 def info_proccess():
     return jsonify({
         "Servidor": "dev.jonnattan.com",
-        "Nombre": "API de Scrapper para distitnas cosas",
-        "Docs":"proximamente"
+        "Nombre": "API de Documentos para distitos repos",
+        "Support":"Drive"
     })
 #===============================================================================
 # Metodo solicitado por la biblioteca de autenticaci'on b'asica
@@ -92,23 +95,53 @@ def verify_password(username, password):
         del basicAuth
     return user
 
-#===============================================================================
+#==================================================================================
 # Implementacion del handler que respondera el error en caso de mala autenticacion
-#===============================================================================
+#==================================================================================
 @auth.error_handler
 def unauthorized():
     return make_response(jsonify({'message':'invalid credentials'}), 401)
 
 # ==============================================================================
-# Procesa peticiones de la pagina de la logia
+# Procesa peticiones de docs en drive
 # ==============================================================================
-@app.route('/drive/<path:subpath>', methods=['POST', 'GET'])
+@app.route('/docs/drive/<path:subpath>', methods=['POST', 'GET'])
 @csrf.exempt
 @auth.login_required
 def process_drive(subpath):
     drive = DriverDocs( str(ROOT_DIR) )
     data_response, http_code = drive.request_process( request, subpath )
     del drive
+    return jsonify(data_response), http_code
+
+# ==============================================================================
+# Procesa peticiones de docs en s3
+# ==============================================================================
+@app.route('/docs/s3/<path:subpath>', methods=['POST', 'GET'])
+@csrf.exempt
+@auth.login_required
+def process_s3(subpath):
+    aws = Aws( )
+    data_response, http_code = aws.request_process( request, str(subpath) )
+    del aws
+    return jsonify(data_response), http_code
+
+@app.route('/docs/api', methods=['POST', 'GET'])
+@csrf.exempt
+@auth.login_required
+def process_api_only():
+    api = ApiDocs()
+    data_response, http_code = api.request_process( request, '' )
+    del api
+    return jsonify(data_response), http_code
+
+@app.route('/docs/api/<path:subpath>', methods=['POST', 'GET'])
+@csrf.exempt
+@auth.login_required
+def process_api(subpath):
+    api = ApiDocs()
+    data_response, http_code = api.request_process( request, subpath )
+    del api
     return jsonify(data_response), http_code
 
 # ===============================================================================

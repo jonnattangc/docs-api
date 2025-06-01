@@ -7,6 +7,7 @@ try:
     import json
     from cipher import Cipher
     from flask import jsonify
+    import base64
     from pydrive2.auth import GoogleAuth
     from pydrive2.drive import GoogleDrive
     from pydrive2.files import FileNotUploadedError
@@ -25,14 +26,20 @@ class DriverDocs () :
     root_dir = None
     api_key = None
     cipher = None
-    credential_file = None
+    credential_file : str = None
+    docs_folder: str = None
     def __init__(self, root_dir : str = str(ROOT_DIR)) :
         try:
             self.root_dir = root_dir
             self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
             name_file = str(os.environ.get('GOOGLE_CREDENTIALS_JSON','None'))
             if name_file != "None":
-                self.credential_file = root_dir + "/" + name_file
+                self.credential_file = root_dir + name_file
+                logging.info("Credentials file: " + str(self.credential_file) )
+            work_dir = str(os.environ.get('DOCS_WORK_DIR','None'))
+            if work_dir != None :
+                self.docs_folder = root_dir + work_dir
+                logging.info("Docs work folder: " + str(self.docs_folder) )
             self.cipher = Cipher()
         except Exception as e :
             print("ERROR :", e)
@@ -49,6 +56,8 @@ class DriverDocs () :
 
     def login(self):
         credentials = None
+        http_code  = 200
+        message = None
         try:
             GoogleAuth.DEFAULT_SETTINGS['client_config_file'] = self.credential_file
             gauth = GoogleAuth()
@@ -62,11 +71,14 @@ class DriverDocs () :
             else:
                 logging.info("Auth Ok" )
                 gauth.Authorize()
+                message = "Authentication Ok"
             gauth.SaveCredentialsFile(self.credential_file)
             credentials = GoogleDrive(gauth)
         except Exception as e :
-           print("ERROR list_folder():", e)
-        return credentials
+           print("ERROR login(): ", e)
+           http_code  = 401
+           message = str(e)
+        return credentials, http_code, message
 
     def list_folder (self, json_data ) :
         msg = 'Servicio ejecutado correctamente'
@@ -74,10 +86,22 @@ class DriverDocs () :
         files = []
         try:
             folder_id = json_data["folder_id"]
-            drive = self.login()
+            drive, code, error_msg = self.login()
+            if code != 200 :
+                return error_msg, code, files
             query = "'{}' in parents".format(folder_id)
-            # logging.info('Query: ' + str(query))
+            filters = []
+            try :
+                filters = json_data["filters"]
+            except Exception as e :
+                filters = []
+            if filters != None and len(filters) > 0 :
+                for f in filters :
+                    query += " and {} {} '{}'".format(str(f["filter_name"]), str(f["comparation"]), str(f["filter_value"]))
+                logging.info('Query whit Filters: ' + str(query))
+            
             files_list = drive.ListFile({'q': query}).GetList()
+            logging.info('Response ' + str(len(files_list)) + ' elementos')
             for f in files_list:
                 files.append(f)
         except Exception as e :
@@ -92,15 +116,39 @@ class DriverDocs () :
         code = 200
         files = []
         try:
-            folder_id = json_data["folder_id"]
-            file_name = json_data["file_name"]
-            drive = self.login()
+            drive, code, error_msg = self.login()
+            if code != 200 :
+                return error_msg, code, files
+            
+            folder_id : str = json_data["folder_id"]
             query = "'{}' in parents".format(folder_id)
+            
+            filters = []
+            try :
+                filters = json_data["filters"]
+            except Exception as e :
+                filters = []
+            if filters != None and len(filters) > 0 :
+                for f in filters :
+                    query += " and {} {} '{}'".format(str(f["filter_name"]), str(f["comparation"]), str(f["filter_value"]))
+            
+                logging.info('Query whit Filters: ' + str(query))
+            
             files_list = drive.ListFile({'q': query}).GetList()
+
+            only_id : bool = False
+            try :
+                only_id = json_data["only_id"]
+            except Exception as e :
+                only_id = False
+
             for f in files_list:
                 title = f['title']
-                if( title.find(file_name) >= 0 ) :
+                if only_id :
+                    files.append({"id": f['id']})
+                else :
                     files.append(f)
+                break
         except Exception as e :
            print("ERROR search_file():", e)
            code = 500
@@ -113,32 +161,64 @@ class DriverDocs () :
         code = 200
         data_rx = None
         try:
-            file_id = json_data["file_id"]
-            drive = self.login()
-            query = "'id':'{}'".format(str(file_id))
-            logging.info('Query: ' + str(query))
-            file = drive.CreateFile({'id': file_id}) 
-            file_name = file['title']
-            logging.info('File: ' + str(file))
-            path_file = self.root_dir + "/static/" + file_name
-            file.GetContentFile(path_file)
-            
-            links = None 
-            try :
-                if file['exportLinks'] != None :
-                    links = file['exportLinks']
-            except Exception as e :
-                links = None 
+            file_id :str = json_data["file_id"]
+            drive, code, error_msg = self.login()
+            if code != 200 :
+                return error_msg, code, data_rx
 
-            data_rx = {
-              "link": file['embedLink'],
-              "internal_route": path_file,
-              "title": file['title'],
-              "size_bytes": file['fileSize'],
-              "created_date": file['createdDate'],
-              "type": file['mimeType'],
-              "other_links": links,
-            }
+            file = drive.CreateFile({'id': file_id}) 
+            file_name :str = file['title']
+            
+            path_file : str = None
+            file_b64 : str = None
+
+            require_detail : bool = False
+            try :
+                require_detail = json_data["require_detail"]
+            except Exception as e :
+                require_detail = False
+
+            doc_required : bool = False
+            try :
+                doc_required = json_data["require_doc"]
+            except Exception as e :
+                doc_required = False
+            
+            if doc_required : 
+                path_file = self.docs_folder + file_name
+                file.GetContentFile(path_file)
+                file_bytes = None
+                with open(path_file, "rb") as pdf_file:
+                    file_bytes = base64.b64encode(pdf_file.read())
+                if file_bytes != None :
+                    file_b64 = file_bytes.decode('utf-8')
+            
+            if require_detail :
+                links = None 
+                try :
+                    if file['exportLinks'] != None :
+                        links = file['exportLinks']
+                except Exception as e :
+                    links = None 
+
+                data_rx = {
+                    "link": file['embedLink'],
+                    "internal_route": path_file,
+                    "file_b64": file_b64,
+                    "title": file_name,
+                    "size_bytes": file['fileSize'],
+                    "created_date": file['createdDate'],
+                    "type": file['mimeType'],
+                    "other_links": links,
+                }
+            else :
+                data_rx = {
+                    "title": file_name,
+                    "size_bytes": file['fileSize'],
+                    "type": file['mimeType'],
+                    "file_b64": file_b64
+                }
+
         except Exception as e :
            print("ERROR read_file():", e)
            code = 500
@@ -151,15 +231,20 @@ class DriverDocs () :
         http_code  = 200
         data_response = None
         response =  {"message" : message, "data": data_response}
-
-        logging.info("Reciv " + str(request.method) + " Contex: /drive/" + str(subpath) )
+        json_data = None
+        logging.info("Reciv " + str(request.method) + " Contex: /docs/drive/" + str(subpath) )
         #logging.info("Reciv Header :\n" + str(request.headers) )
         #logging.info("Reciv Data: " + str(request.data) )
         rx_api_key = request.headers.get('x-api-key')
+        if rx_api_key == None :
+            response = {"message" : "No autorizado", "data": data_response }
+            http_code  = 401
+            return  response, http_code
         if str(rx_api_key) != str(self.api_key) :
             response = {"message" : "No autorizado", "data": data_response }
             http_code  = 401
             return  response, http_code
+        
         request_data = request.get_json()
         request_type = None
         data_rx = None
@@ -186,7 +271,7 @@ class DriverDocs () :
         logging.info("JSON :" + str(json_data) )
         if request.method == 'POST' :
             if str(subpath).find('login') >= 0 :
-                credentials = self.login()
+                credentials, http_code, message = self.login()
                 logging.info("Login :" + str(credentials) )
             if str(subpath).find('list') >= 0 :
                message, http_code, data_response = self.list_folder(json_data)

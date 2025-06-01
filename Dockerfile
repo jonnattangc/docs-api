@@ -1,22 +1,18 @@
-FROM python:3.14-rc-slim AS Builder
+FROM python:3.14-rc-slim AS builder
 
 WORKDIR /src
 
-COPY requirements.txt /src/requirements.txt
+COPY requirements.txt .
 
 RUN apt-get update -y && \
     apt-get install -y build-essential && \
     apt-get install -y libssl-dev && \
     apt-get install -y libffi-dev && \
     apt-get install -y python3-dev && \
-    apt-get install -y cargo
+    apt-get install -y cargo  && \
+    pip wheel --no-cache-dir --wheel-dir=/src/dist -r requirements.txt
 
-RUN pip wheel --no-cache-dir --wheel-dir=/src/dist -r requirements.txt && \
-    ls -la /src/dist
-
-    # pip install --no-cache-dir --no-index --find-links=/src/wheelhouse .
-
-FROM python:3.14.0a2-alpine3.21
+FROM python:3.14-rc-slim
 
 LABEL VERSION=1.0
 LABEL DESCRIPCION="API para documentos"
@@ -31,25 +27,29 @@ ENV AES_KEY ''
 ENV FLASK_APP app
 ENV FLASK_DEBUG development
 
-RUN adduser -h /home/jonnattan -u 10100 -g 10101 --disabled-password jonnattan  && \
-    cd /home/jonnattan && \
+RUN addgroup --gid 10101 jonnattan && \
+    adduser --home /home/jonnattan --uid 10100 --gid 10101 --disabled-password jonnattan
+
+
+RUN cd /home/jonnattan && \
     mkdir -p /home/jonnattan/.local/bin && \
     export PATH=$PATH:/home/jonnattan/.local/bin && \
-    chmod -R 755 /home/jonnattan  && \
+    chmod -R 755 /home/jonnattan && \
     chown -R jonnattan:jonnattan /home/jonnattan
 
 WORKDIR /home/jonnattan
 
-COPY . /home/jonnattan
+USER jonnattan
 
-COPY --from=Builder /src/dist /home/jonnattan/dist
+COPY . .
 
-RUN pip install -r requirements.txt
+COPY --from=builder --chown=10100:10101 --chmod=755 /src/dist /home/jonnattan/dist
+
+RUN pip install --no-cache-dir --no-index --find-links=file:///home/jonnattan/dist -r requirements.txt
 
 WORKDIR /home/jonnattan/app
 
-USER jonnattan
+EXPOSE 8095
 
-EXPOSE 8091
-
-CMD [ "python", "http-server.py", "8091"]
+CMD [ "python", "http-server.py", "8095"]
+    
