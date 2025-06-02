@@ -20,7 +20,7 @@ class Aws() :
     url_base : str = 'https://s3.__AWS_REGION__.amazonaws.com/'
     access_key : str = os.environ.get('AWS_ACCESS_KEY','None')
     secret_key : str = os.environ.get('AWS_SECRET_KEY','None')
-    bucket_name : str = 'jonnattan.com-storage'
+    api_key : str = None
     s3_resource = None
     s3 = None
     root  : str = '.'
@@ -28,10 +28,11 @@ class Aws() :
     # ==============================================================================
     # Constructor
     # ==============================================================================
-    def __init__(self, root = str(ROOT_DIR), region='us-east-1') :
+    def __init__(self, root = str(ROOT_DIR), region='us-east-2') :
         self.url_base = self.url_base.replace('__AWS_REGION__', region)
         try :
-            self.root = str(root)
+            self.root = root
+            self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
             session = boto3.Session(aws_access_key_id=self.access_key, aws_secret_access_key=self.secret_key)
             if session is None :
                 raise Exception("AWS Session is None")
@@ -54,25 +55,78 @@ class Aws() :
     # Procesa todos los request 
     # ==============================================================================
     def request_process(self, request, action : str ) :
+        http_code  = 200
+        data_response = None
+        success_message : str = 'Servicio ejecutado exitosamente'
+        no_found_message : str = 'Servicio no implementado o no encontrado'
+        response =  {"message" : success_message, "data": data_response}
+        json_data = None
         logging.info("Reciv " + str(request.method) + " Acción: /docs/s3/" + action )
-        #logging.info("Reciv Data: " + str(request.data) )
-        #logging.info("Reciv Header : " + str(request.headers) )
-        path : str = action.lower().strip()
-        data = {'status':'Error ocurrido'}
-        status = 409
-        if action != None :   
-            if path.find('list') >= 0 :
-                return self.s3ObjectList()
-            elif path.find('contents') >= 0 :
-                return self.s3ObjectList()
+
+        rx_api_key = request.headers.get('x-api-key')
+        if rx_api_key == None :
+            response = {"message" : "Api key no encontrada", "data": data_response }
+            http_code  = 401
+            return  response, http_code
+        if str(rx_api_key) != str(self.api_key) :
+            response = {"message" : "Api key no es valida", "data": data_response }
+            http_code  = 401
+            return  response, http_code
+        
+        path : str = None 
+        if action != None : 
+            path = action.lower().strip()
+
+        if request.method == 'POST' :
+            request_data = request.get_json()
+            request_type = None
+            data_rx = None
+            try :
+                request_type = request_data['type']
+            except Exception as e :
+                request_type = None
+            try :
+                data_rx = request_data['data']
+            except Exception as e :
+                data_rx = None
+
+            if request_type != None :
+                # encrypted or inclear
+                if data_rx != None and str(request_type) == 'encrypted' :
+                    data_cipher = str(data_rx)
+                    logging.info('Data Encrypt: ' + str(data_cipher) )
+                    data_clear = self.cipher.aes_decrypt(data_cipher)
+                    logging.info('Data EnClaro: ' + str(data_clear) )
+                    json_data = json.dumps(data_clear)
+                else: 
+                    json_data = data_rx
+            else: 
+                    json_data = data_rx
+            
+            logging.info("Payload JSON :" + str(json_data) )
+            
+            if path.find('search') >= 0 :
+                data_response, http_code = self.search_file( json_data )
             elif path.find('upload') >= 0 :
-                return self.s3Uploader( request )
+                data_response, http_code =  self.s3_uploader( request )
             else :
-                data = {'status':'No Implementedo'}
-                status = 409
-        return data, status
+                data_response = {'statusCode' : 404, 'status': no_found_message}
+                http_code = 404
+        elif request.method == 'GET' :
+            if path.find('list') >= 0 :
+                data_response, http_code = self.s3_object_list()
+            elif path.find('test') >= 0 :
+                data_response, http_code = self.test_aws()
+            else :
+                data_response = {'statusCode' : 404, 'status': no_found_message}
+                http_code = 404
+        else :
+            data_response = {'statusCode' : 404, 'status': no_found_message}
+            http_code = 404
+        response = {"data": data_response, "message" : success_message }
+        return  response, http_code
     
-    def s3Uploader( self, request ) :
+    def s3_uploader( self, request, bucket_name = 'jonnattan.com-storage' ) :
         data = {'ref': 'Servicio Ejecutado exitosamente'}
         code = 200
         m1 = time.monotonic_ns()
@@ -96,10 +150,10 @@ class Aws() :
             logging.info('[S3] Archivo a subir: ' + str(file_path))
             logging.info('[S3] Nombre: ' + str(name_file))
             
-            s3_bucket = self.s3_resource.Bucket(name=self.bucket_name)
+            s3_bucket = self.s3_resource.Bucket(name=bucket_name)
             s3_bucket.upload_file( Filename=file_path, Key=name_file )
             data = { 
-                'url': str(self.url_base) + str(self.bucket_name) + '/' + str(name_file),
+                'url': str(self.url_base) + str(bucket_name) + '/' + str(name_file),
                 'msg': 'Servicio ejecutado exitosamente',
                 'code': 0
             }
@@ -115,29 +169,95 @@ class Aws() :
         return data, code 
 
 
-    def testAws( self ) :
-        retorno = {'valid': False }
+    def test_aws( self ) :
+        retorno = {'serviceStatus': False }
         status = 200
         m1 = time.monotonic()
         try :
-            retorno = {'valid': self.s3_resource != None and self.s3 != None } 
+            retorno = {'serviceStatus': self.s3_resource != None and self.s3 != None } 
         except Exception as e:
             print("[STATUS] ERROR AWS:", e)
-            status = 500
+            status = 403
         diff = time.monotonic() - m1
         logging.info("[STATUS] Servicio Ejecutado en " + str(diff) + " msec." )
         return retorno, status 
     
+    def search_file (self, json_data ) :
+        msg = 'Servicio ejecutado correctamente'
+        code_http = 200
+        files_response  : list = []
+        files_list : list = []
+        photos : list = self.get_photos()
+        docs : list = self.get_docs()
+
+        folder_name : str = json_data["folder_id"]
+        only_id : bool = False
+
+        try:
+            filters : list = []
+            try :
+                filters = json_data["filters"]
+            except Exception as e :
+                filters = []
+            
+            if filters != None and len(filters) > 0 :
+                for f in filters :
+                    filter_name : str = str(f['filter_name'])
+                    comparator : str = str(f['comparation'])
+                    if filter_name == 'mimeType' and comparator == '=' :
+                        filter_value = str(f['filter_value'])
+                        if filter_value == 'image/png' or filter_value == 'image/jpeg' :
+                            files_list.extend( photos )
+                        elif filter_value == 'application/pdf' :
+                            files_list.extend( docs )
+                        else :
+                            files_list = []   
+                    elif filter_name == 'title' and comparator == 'contains' :
+                        filter_value : str = str(f['filter_value'])
+                        for p in photos :
+                            title : str = str(p['url']).split("/")[-1]
+                            if title.find(filter_value) >= 0 and ( title.endswith('.jpg') >= 0 or title.endswith('.jpeg') >= 0 or title.endswith('.png') >= 0) :
+                                files_list.append( p )
+                        for d in docs :
+                            title : str = str(d['url']).split("/")[-1]
+                            if title.find(filter_value) >= 0 and title.endswith('.pdf') >= 0:
+                                files_list.append( d )  
+                    else :
+                        files_list = []         
+
+            for file in files_list : 
+                name_file : str = file['url']
+                title : str = name_file.split("/")[-1]
+                name_file = name_file.replace(' ', '%20')       
+                if title != None and title != "" : 
+                    value = { 'title': title, 'url': name_file }
+                    if value in files_response :
+                        continue
+                    else :  
+                        files_response.append( value )
+                
+        except Exception as e :
+           print("ERROR search_file():", e)
+           code_http = 500
+           msg = 'Error Message: ' + str(e)
+           files = []
+        
+        response = {
+            'msg': msg,
+            'files': files_response
+        }
+        return response, code_http
+
     # ==============================================================================
     # Lista de cosas en s3
     # ==============================================================================
-    def s3ObjectList( self ) :
+    def s3_object_list( self ) :
         http_code = 409
         data = {}
         m1 = time.monotonic_ns()
         try :
-            photos = self.getPhotos()
-            docs = self.getDocs()
+            photos = self.get_photos()
+            docs = self.get_docs()
             data = {
                 'photos' : str(photos),
                 'docs' : str(docs)
@@ -154,7 +274,7 @@ class Aws() :
     # ==============================================================================
     # Lista de fotos en s3
     # ==============================================================================
-    def getPhotos( self ) :
+    def get_photos( self, bucket_name = 'jonnattan.com-storage' ) :
         elements = []
         m1 = time.monotonic_ns()
         try :
@@ -176,7 +296,7 @@ class Aws() :
     # ==============================================================================
     # Lista de documentos en s3
     # ==============================================================================
-    def getDocs( self ) :
+    def get_docs( self, bucket_name = 'jonnattan.com-storage' ) :
         elements = []
         m1 = time.monotonic_ns()
         try :
