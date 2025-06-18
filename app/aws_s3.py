@@ -8,6 +8,8 @@ try:
     import boto3
     import base64
     import uuid
+    import requests
+    import hashlib
 
 except ImportError:
     logging.error(ImportError)
@@ -103,12 +105,15 @@ class Aws() :
             else: 
                     json_data = data_rx
             
-            logging.info("Payload JSON :" + str(json_data) )
+            if path.find('upload') < 0 :
+                logging.info("Payload JSON :" + str(json_data) )
             
             if path.find('search') >= 0 :
                 data_response, http_code = self.search_file( json_data )
+            if path.find('read') >= 0 :
+                data_response, http_code = self.read_file( data = json_data )
             elif path.find('upload') >= 0 :
-                data_response, http_code =  self.s3_uploader( request )
+                data_response, http_code =  self.s3_uploader( request_data = json_data )
             else :
                 data_response = {'statusCode' : 404, 'status': no_found_message}
                 http_code = 404
@@ -126,47 +131,52 @@ class Aws() :
         response = {"data": data_response, "message" : success_message }
         return  response, http_code
     
-    def s3_uploader( self, request, bucket_name = 'jonnattan.com-storage' ) :
-        data = {'ref': 'Servicio Ejecutado exitosamente'}
-        code = 200
-        m1 = time.monotonic_ns()
+    def s3_uploader( self, request_data = None, bucket_name = 'jonnattan.com-storage' ) :
+        data_response = {}
+        http_code = 201
+        m1 = time.monotonic()
         try :
-            request_data = request.get_json()
+            if request_data == None :
+                raise Exception("Request data is None")
             name_file = str(request_data['name'])
-            name_file = 'photos/' + str(uuid.uuid4()) + '-' + name_file
+            logging.info('[S3] Archivo a subir: ' + str(name_file))
+            tmp_name_file : str = str(uuid.uuid4()) + '-' + name_file
+            logging.info('[S3] Ruta temp: /tmp/' + str(tmp_name_file))
+            s3_name_file : str = str(request_data['folder']) + '/' + tmp_name_file
+            logging.info('[S3] Ruta: ' + str(s3_name_file))
 
-            data = str(request_data['data'])
+            data = str(request_data['fileb64'])
             data = data.replace('data:image/png;base64,','')
+            data = data.replace('data:application/pdf;base64,','')
 
-            name = 'test.png'
-            file_path = os.path.join(self.root, 'static')
-            file_path = os.path.join(file_path, 'images')
-            file_path = os.path.join(file_path, str(name))
-
+            file_path = os.path.join('/tmp/', str(tmp_name_file))
             file = open(file_path, 'wb')
-            file.write( base64.b64decode((data) ))
+            file_content = base64.b64decode((data) )
+            file.write(file_content)
             file.close()
-
-            logging.info('[S3] Archivo a subir: ' + str(file_path))
-            logging.info('[S3] Nombre: ' + str(name_file))
             
             s3_bucket = self.s3_resource.Bucket(name=bucket_name)
-            s3_bucket.upload_file( Filename=file_path, Key=name_file )
-            data = { 
-                'url': str(self.url_base) + str(bucket_name) + '/' + str(name_file),
-                'msg': 'Servicio ejecutado exitosamente',
-                'code': 0
-            }
+            s3_bucket.upload_file( Filename=file_path, Key=s3_name_file )
 
+            md5_calculated = self.calculate_md5(file_content)
+            logging.info('[S3] MD5: ' + str(md5_calculated))
+
+            data_response = {
+                'size_bytes': os.path.getsize(file_path),
+                'md5': str(md5_calculated)
+            }
+            http_code = 201
+            # se borra el archivo temporal
+            if os.path.exists(file_path):
+                os.remove(file_path)    
 
         except Exception as e:
             print("[S3] ERROR AWS:", e)
-            code = 403
-            data = { 'ref': 'Error: ' + str(e) }
-
-        diff = time.monotonic_ns() - m1
-        logging.info("[S3] Servicio Ejecutado en " + str(diff) + " nsec." )
-        return data, code 
+            http_code = 403
+            data_response = { 'size_bytes': -1, 'md5': '' }
+        diff = time.monotonic() - m1
+        logging.info("[S3] Servicio Ejecutado en " + str(diff) + " sec." )
+        return data_response, http_code 
 
 
     def test_aws( self ) :
@@ -298,7 +308,7 @@ class Aws() :
     # ==============================================================================
     def get_docs( self, bucket_name = 'jonnattan.com-storage' ) :
         elements = []
-        m1 = time.monotonic_ns()
+        m1 = time.monotonic()
         try :
             if self.s3_resource != None :
                 logging.info('[Photos] s3_resource: ' + str(self.s3_resource) )
@@ -312,6 +322,53 @@ class Aws() :
             print("[Docs] ERROR AWS:", e)
             elements = []
 
-        diff = time.monotonic_ns() - m1
-        logging.info("[Docs] AWS Time S3 Docs Response in " + str(diff) + " nsec." )
+        diff = time.monotonic() - m1
+        logging.info("[Docs] AWS Time S3 Docs Response in " + str(diff) + " sec." )
         return elements
+
+    def read_file( self, data = None, bucket_name = 'jonnattan.com-storage' ) :
+        element = None
+        m1 = time.monotonic()
+        code_http = 200
+        try :
+            if self.s3_resource != None :
+                logging.info('[Docs] s3_resource: ' + str(self.s3_resource) )
+                for bucket in self.s3_resource.buckets.all():
+                    logging.info('[Docs] Bucket: ' + bucket.name)
+                    for obj in bucket.objects.filter(Prefix='docs/') :
+                        logging.info('[Docs] File Solicituded: ' + str(data['name_file']) + ' Key: ' + obj.key)
+                        if str(obj.key).find(str(data['name_file'])) >= 0 and str(obj.key).find(str(data['folder'])) >= 0 :
+                            url_file : str = self.url_base + obj.bucket_name + '/' + obj.key
+                            response = requests.get(url_file, stream=True)
+                            file_content = response.content
+                            md5_calculated = self.calculate_md5(file_content)
+                            if md5_calculated :
+                                if md5_calculated != data['md5sum'] :
+                                    logging.info("MD5 NO Coinciden, Calculado: " + str(md5_calculated))
+                                    code_http = 409
+                                    element = None
+                                    break
+                            # Codificar el contenido a Base64
+                            encoded_content = base64.b64encode(file_content)
+                            element = {
+                                'type' : 'application/pdf',
+                                'file_b64' : encoded_content.decode('utf-8'),
+                                'size_bytes' : obj.size
+                            }
+                            #logging.info('[Docs] Encontrado!!!!!!! URL: ' + str(element))
+                            break
+        except Exception as e:
+            print("[Docs] ERROR AWS:", e)
+            element = None
+            code_http = 500
+
+        diff = time.monotonic() - m1
+        logging.info("[Docs] AWS Time S3 Docs Response in " + str(diff) + " sec." )
+        return element, code_http
+
+    def calculate_md5(self, data_bytes):
+        if data_bytes is None:
+            return None
+        md5_hash = hashlib.md5()
+        md5_hash.update(data_bytes)
+        return md5_hash.hexdigest()

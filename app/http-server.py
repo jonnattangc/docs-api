@@ -55,7 +55,7 @@ csrf = CSRFProtect()
 csrf.init_app(app)
 
 auth = HTTPBasicAuth()
-cors = CORS(app, resources={r"/docs/*": {"origins": ["dev.jonnattan.com"]}})
+cors = CORS(app, resources={r"/docs/*": {"origins": ["dev.jonnattan.com","logia.buenaventuracadiz.cl"]}})
 # ===============================================================================
 # variables globales
 # ===============================================================================
