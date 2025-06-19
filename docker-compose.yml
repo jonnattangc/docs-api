@@ -1,4 +1,3 @@
-version: "3.9"
 services:
     docs-api:
       container_name: docs-api

@@ -19,9 +19,11 @@ except ImportError:
 ROOT_DIR = os.path.dirname(__file__)
 
 class Aws() :
-    url_base : str = 'https://s3.__AWS_REGION__.amazonaws.com/'
     access_key : str = os.environ.get('AWS_ACCESS_KEY','None')
     secret_key : str = os.environ.get('AWS_SECRET_KEY','None')
+    aws_bucket : str = os.environ.get('AWS_BUCKET_NAME','None')
+    aws_region : str = os.environ.get('AWS_REGION','us-east-1')
+    url_base : str = 'https://s3.' + aws_region + '.amazonaws.com/'
     api_key : str = None
     s3_resource = None
     s3 = None
@@ -30,8 +32,7 @@ class Aws() :
     # ==============================================================================
     # Constructor
     # ==============================================================================
-    def __init__(self, root = str(ROOT_DIR), region='us-east-2') :
-        self.url_base = self.url_base.replace('__AWS_REGION__', region)
+    def __init__(self, root = str(ROOT_DIR)) :
         try :
             self.root = root
             self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
@@ -49,7 +50,6 @@ class Aws() :
     # Destructor
     # ==============================================================================
     def __del__(self):
-        self.url_base = 'https://s3.__AWS_REGION__.amazonaws.com/'
         del self.s3_resource
         self.s3_resource = None
 
@@ -131,7 +131,7 @@ class Aws() :
         response = {"data": data_response, "message" : success_message }
         return  response, http_code
     
-    def s3_uploader( self, request_data = None, bucket_name = 'jonnattan.com-storage' ) :
+    def s3_uploader( self, request_data = None ) :
         data_response = {}
         http_code = 201
         m1 = time.monotonic()
@@ -155,7 +155,7 @@ class Aws() :
             file.write(file_content)
             file.close()
             
-            s3_bucket = self.s3_resource.Bucket(name=bucket_name)
+            s3_bucket = self.s3_resource.Bucket(name=self.aws_bucket)
             s3_bucket.upload_file( Filename=file_path, Key=s3_name_file )
 
             md5_calculated = self.calculate_md5(file_content)
@@ -284,7 +284,7 @@ class Aws() :
     # ==============================================================================
     # Lista de fotos en s3
     # ==============================================================================
-    def get_photos( self, bucket_name = 'jonnattan.com-storage' ) :
+    def get_photos( self, ) :
         elements = []
         m1 = time.monotonic_ns()
         try :
@@ -306,7 +306,7 @@ class Aws() :
     # ==============================================================================
     # Lista de documentos en s3
     # ==============================================================================
-    def get_docs( self, bucket_name = 'jonnattan.com-storage' ) :
+    def get_docs( self, ) :
         elements = []
         m1 = time.monotonic()
         try :
@@ -326,7 +326,7 @@ class Aws() :
         logging.info("[Docs] AWS Time S3 Docs Response in " + str(diff) + " sec." )
         return elements
 
-    def read_file( self, data = None, bucket_name = 'jonnattan.com-storage' ) :
+    def read_file( self, data = None ) :
         element = None
         m1 = time.monotonic()
         code_http = 200
@@ -334,9 +334,14 @@ class Aws() :
             if self.s3_resource != None :
                 logging.info('[Docs] s3_resource: ' + str(self.s3_resource) )
                 for bucket in self.s3_resource.buckets.all():
-                    logging.info('[Docs] Bucket: ' + bucket.name)
+                    if bucket.name.find(self.aws_bucket) < 0 and bucket.name != self.aws_bucket :
+                        logging.info('[Docs] Bucket: ' + str(bucket.name) + ' descartado.')
+                        continue
+                    logging.info('[Docs] Se busca en Bucket: ' + str(bucket.name))
                     for obj in bucket.objects.filter(Prefix='docs/') :
-                        logging.info('[Docs] File Solicituded: ' + str(data['name_file']) + ' Key: ' + obj.key)
+                        if obj.key == None or obj.key.endswith('/'):
+                            continue
+                        logging.info('[Docs] File Solicitado: ' + str(data['name_file']) + ' y Encontrado: ' + obj.key)
                         if str(obj.key).find(str(data['name_file'])) >= 0 and str(obj.key).find(str(data['folder'])) >= 0 :
                             url_file : str = self.url_base + obj.bucket_name + '/' + obj.key
                             response = requests.get(url_file, stream=True)
@@ -344,7 +349,8 @@ class Aws() :
                             md5_calculated = self.calculate_md5(file_content)
                             if md5_calculated :
                                 if md5_calculated != data['md5sum'] :
-                                    logging.info("MD5 NO Coinciden, Calculado: " + str(md5_calculated))
+                                    logging.error("MD5 NO Coinciden, Calculado: " + str(md5_calculated))
+                                    logging.error("Contenido: " + str(response.content))
                                     code_http = 409
                                     element = None
                                     break

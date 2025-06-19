@@ -161,7 +161,11 @@ class DriverDocs () :
         code = 200
         data_rx = None
         try:
-            file_id :str = json_data["file_id"]
+            folder :str = json_data["folder"]
+            name :str = json_data["name_file"]
+
+            logging.info("Folder: " + str(folder) + " Name: " + str(name) )
+            
             drive, code, error_msg = self.login()
             if code != 200 :
                 return error_msg, code, data_rx
@@ -268,7 +272,9 @@ class DriverDocs () :
                 json_data = data_rx
         else: 
                 json_data = data_rx
+        
         logging.info("JSON :" + str(json_data) )
+
         if request.method == 'POST' :
             if str(subpath).find('login') >= 0 :
                 credentials, http_code, message = self.login()
@@ -279,6 +285,9 @@ class DriverDocs () :
                message, http_code, data_response = self.read_file(json_data)
             if str(subpath).find('search') >= 0 :
                message, http_code, data_response = self.search_file(json_data)
-        
+        elif request.method == 'GET' :
+            if str(subpath).find('read') >= 0 :
+               message, http_code, data_response = self.read_file(json_data)
+
         response = {"data": data_response, "message" : message }
         return  response, http_code
