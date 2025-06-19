@@ -109,7 +109,7 @@ def unauthorized():
 @csrf.exempt
 @auth.login_required
 def process_drive(subpath):
-    drive = DriverDocs( str(ROOT_DIR) )
+    drive = DriverDocs()
     data_response, http_code = drive.request_process( request, subpath )
     del drive
     return jsonify(data_response), http_code

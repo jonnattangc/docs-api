@@ -20,7 +20,7 @@ except ImportError:
     sys.exit(-2)
 
 
-ROOT_DIR = os.path.dirname(__file__)
+ROOT_DIR : str = str(os.path.dirname(__file__))
 
 class DriverDocs () :
     root_dir = None
@@ -28,17 +28,17 @@ class DriverDocs () :
     cipher = None
     credential_file : str = None
     docs_folder: str = None
-    def __init__(self, root_dir : str = str(ROOT_DIR)) :
+    def __init__(self) :
         try:
-            self.root_dir = root_dir
+            self.root_dir = ROOT_DIR
             self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
             name_file = str(os.environ.get('GOOGLE_CREDENTIALS_JSON','None'))
             if name_file != "None":
-                self.credential_file = root_dir + name_file
+                self.credential_file = self.root_dir + name_file
                 logging.info("Credentials file: " + str(self.credential_file) )
             work_dir = str(os.environ.get('DOCS_WORK_DIR','None'))
             if work_dir != None :
-                self.docs_folder = root_dir + work_dir
+                self.docs_folder = self.root_dir + work_dir
                 logging.info("Docs work folder: " + str(self.docs_folder) )
             self.cipher = Cipher()
         except Exception as e :
@@ -46,7 +46,8 @@ class DriverDocs () :
             self.root_dir = None
             self.api_key = None
             self.credential_file = None
-            self.cipher = None
+            if self.cipher != None :
+                self.cipher = None
 
     def __del__(self):
         self.root_dir = None
@@ -58,9 +59,9 @@ class DriverDocs () :
         credentials = None
         http_code  = 200
         message = None
+        gauth = GoogleAuth()
         try:
             GoogleAuth.DEFAULT_SETTINGS['client_config_file'] = self.credential_file
-            gauth = GoogleAuth()
             gauth.LoadCredentialsFile(self.credential_file)
             if gauth.credentials is None:
                 logging.info("Create access token" )
@@ -72,12 +73,18 @@ class DriverDocs () :
                 logging.info("Auth Ok" )
                 gauth.Authorize()
                 message = "Authentication Ok"
-            gauth.SaveCredentialsFile(self.credential_file)
             credentials = GoogleDrive(gauth)
         except Exception as e :
            print("ERROR login(): ", e)
            http_code  = 401
            message = str(e)
+        
+        try:
+            gauth.SaveCredentialsFile(self.credential_file)
+        except Exception as e :
+            print("ERROR SaveCredentialsFile(): ", e)
+        
+        
         return credentials, http_code, message
 
     def list_folder (self, json_data ) :
@@ -164,7 +171,7 @@ class DriverDocs () :
             folder :str = json_data["folder"]
             name :str = json_data["name_file"]
 
-            logging.info("Folder: " + str(folder) + " Name: " + str(name) )
+            logging.info("Folder: " + str(folder) + str(name) )
             
             drive, code, error_msg = self.login()
             if code != 200 :
