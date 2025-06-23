@@ -9,14 +9,14 @@ services:
       restart: always
       volumes:
         - ./app:/home/jonnattan/app
-        - ../file.aws_credentials:/home/jonnattan/.aws/credentials  # Archivo que no puede ser versionado
+        - ../envs/file.aws_credentials:/home/jonnattan/.aws/credentials  # Archivo que no puede ser versionado
         - ../envs/settings.yaml:/home/jonnattan/app/settings.yaml
         - ../envs/client_secrets.json:/home/jonnattan/app/client_secrets.json
         - ../envs/credentials_module.json:/home/jonnattan/app/credentials_module.json
       ports:
         - "8095:8095"
       env_file:
-        - ../file_docs.env
+        - ../envs/file_docs.env
       networks:
         - db-net
       #command: tail -f /home/jonnattan/app/http-server.py
