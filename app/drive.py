@@ -14,4 +14,4 @@ except ImportError:
 
 
 gauth = GoogleAuth()
-gauth.LocalWebserverAuth()
+gauth.LocalWebserverAuth( launch_browser=False )

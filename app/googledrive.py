@@ -28,44 +28,73 @@ class DriverDocs () :
     cipher = None
     credential_file : str = None
     docs_folder: str = None
+    # Id de carpetas
+    apr_folder_id: str = None
+    mae_folder_id: str = None
+    com_folder_id: str = None
+
     def __init__(self) :
         try:
             self.root_dir = ROOT_DIR
             self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
-            name_file = str(os.environ.get('GOOGLE_CREDENTIALS_JSON','None'))
-            if name_file != "None":
-                self.credential_file = self.root_dir + name_file
-                logging.info("Credentials file: " + str(self.credential_file) )
+            self.credential_file = str(os.environ.get('GOOGLE_CREDENTIALS_JSON', None))
+            if self.credential_file == None:
+                raise Exception("GOOGLE_CREDENTIALS_JSON: " + str(self.credential_file) )
+            logging.info("Credentials file: " + str(self.credential_file) )
             work_dir = str(os.environ.get('DOCS_WORK_DIR','None'))
             if work_dir != None :
                 self.docs_folder = self.root_dir + work_dir
                 logging.info("Docs work folder: " + str(self.docs_folder) )
+
+            self.apr_folder_id = str(os.environ.get('APREDIZ_FOLDER','None'))
+            self.mae_folder_id = str(os.environ.get('COMPANERO_FOLDER','None'))
+            self.com_folder_id = str(os.environ.get('MAESTRO_FOLDER','None'))
+
+            if self.apr_folder_id.find("None") >= 0 :
+                raise Exception("APR folder id: " + str(self.apr_folder_id) )
+            if self.com_folder_id.find("None") >= 0 :
+                raise Exception("COMP folder id: " + str(self.com_folder_id) )
+            if self.mae_folder_id.find("None") >= 0 :
+                raise Exception("MESTER folder id: " + str(self.mae_folder_id) )
+
             self.cipher = Cipher()
         except Exception as e :
-            print("ERROR :", e)
+            print("ERROR __init__ :", e)
             self.root_dir = None
             self.api_key = None
             self.credential_file = None
             if self.cipher != None :
+                del self.cipher
                 self.cipher = None
 
     def __del__(self):
         self.root_dir = None
         self.api_key = None
-        del self.cipher
+        if self.cipher != None :
+            del self.cipher
         self.cipher = None
 
     def login(self):
         credentials = None
         http_code  = 200
         message = None
-        gauth = GoogleAuth()
         try:
+            if os.path.exists(self.credential_file):
+                # os.chmod(self.credential_file, 0o755)
+                logging.info("Credentials file exist: " + str(self.credential_file) )
+            else:
+                raise Exception("Credentials file not exist: " + str(self.credential_file) )
+
             GoogleAuth.DEFAULT_SETTINGS['client_config_file'] = self.credential_file
+            
+            gauth = GoogleAuth()
+
             gauth.LoadCredentialsFile(self.credential_file)
+
             if gauth.credentials is None:
                 logging.info("Create access token" )
-                gauth.LocalWebserverAuth(port_numbers=[8092])
+                resp = gauth.LocalWebserverAuth()
+                logging.info("Pasoo" + str(resp) )
             elif gauth.access_token_expired:
                 logging.info("Refresh token" )
                 gauth.Refresh()
@@ -73,19 +102,26 @@ class DriverDocs () :
                 logging.info("Auth Ok" )
                 gauth.Authorize()
                 message = "Authentication Ok"
+            gauth.SaveCredentialsFile(self.credential_file)
             credentials = GoogleDrive(gauth)
         except Exception as e :
            print("ERROR login(): ", e)
            http_code  = 401
-           message = str(e)
-        
-        try:
-            gauth.SaveCredentialsFile(self.credential_file)
-        except Exception as e :
-            print("ERROR SaveCredentialsFile(): ", e)
-        
-        
+           message = str(e)        
         return credentials, http_code, message
+
+    def get_folder_id (self, folder_name: str ) :
+        folder_id : str = self.apr_folder_id
+        fn = folder_name.lower().replace("/", "")
+        if fn == 'aprendiz' or fn == 'primero' or fn == '1' :
+            folder_id = self.apr_folder_id
+        elif fn == 'compañero' or fn == 'segundo' or fn == '2' :
+            folder_id = self.com_folder_id
+        elif fn == 'maestro' or fn == 'tercero' or fn == '3' :
+            folder_id = self.mae_folder_id
+        else :
+            folder_id = self.apr_folder_id
+        return folder_id
 
     def list_folder (self, json_data ) :
         msg = 'Servicio ejecutado correctamente'
@@ -168,17 +204,26 @@ class DriverDocs () :
         code = 200
         data_rx = None
         try:
-            folder :str = json_data["folder"]
-            name :str = json_data["name_file"]
-
-            logging.info("Folder: " + str(folder) + str(name) )
+            folder_id : str = self.get_folder_id(str(json_data["folder"]))
+            file_name :str = json_data["name_file"]
+            logging.info("Folder ID: " + str(folder_id) + ', File Name: ' + str(file_name) )
+            json_data["folder_id"] = folder_id
             
+            file_id, code, data_files = self.search_file(json_data)
+            if code != 200 :
+                return msg, code, data_files
+
+            logging.info("FILES: " + str(data_files) )
+
+            file_id = data_files[0]["id"]
+            logging.info("FILE ID: " + str(file_id) )
+
             drive, code, error_msg = self.login()
             if code != 200 :
                 return error_msg, code, data_rx
 
             file = drive.CreateFile({'id': file_id}) 
-            file_name :str = file['title']
+            drive_file_title :str = file['title']
             
             path_file : str = None
             file_b64 : str = None
@@ -191,12 +236,13 @@ class DriverDocs () :
 
             doc_required : bool = False
             try :
-                doc_required = json_data["require_doc"]
+                doc_required = json_data["require_base64_file"]
             except Exception as e :
                 doc_required = False
             
             if doc_required : 
                 path_file = self.docs_folder + file_name
+                logging.info("###### path_file: " + str(path_file) )
                 file.GetContentFile(path_file)
                 file_bytes = None
                 with open(path_file, "rb") as pdf_file:
@@ -224,7 +270,7 @@ class DriverDocs () :
                 }
             else :
                 data_rx = {
-                    "title": file_name,
+                    "title": drive_file_title,
                     "size_bytes": file['fileSize'],
                     "type": file['mimeType'],
                     "file_b64": file_b64

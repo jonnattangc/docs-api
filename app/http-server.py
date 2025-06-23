@@ -108,9 +108,10 @@ def unauthorized():
 @app.route('/docs/drive/<path:subpath>', methods=['POST', 'GET'])
 @csrf.exempt
 @auth.login_required
-def process_drive(subpath):
+def process_drive(subpath : str):
     drive = DriverDocs()
     data_response, http_code = drive.request_process( request, subpath )
+    logger.info('######## data_response' + str(data_response))
     del drive
     return jsonify(data_response), http_code
 
