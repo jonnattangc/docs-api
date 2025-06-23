@@ -3,6 +3,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+app/client_secrets.json  
+app/credentials_module.json
+app/settings.yaml
+add/static/image/*
 
 # C extensions
 *.so
