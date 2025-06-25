@@ -55,7 +55,7 @@ csrf = CSRFProtect()
 csrf.init_app(app)
 
 auth = HTTPBasicAuth()
-cors = CORS(app, resources={r"/docs/*": {"origins": ["dev.jonnattan.com"]}})
+cors = CORS(app, resources={r"/docs/*": {"origins": ["dev.jonnattan.com","logia.buenaventuracadiz.cl"]}})
 # ===============================================================================
 # variables globales
 # ===============================================================================
@@ -108,9 +108,10 @@ def unauthorized():
 @app.route('/docs/drive/<path:subpath>', methods=['POST', 'GET'])
 @csrf.exempt
 @auth.login_required
-def process_drive(subpath):
-    drive = DriverDocs( str(ROOT_DIR) )
+def process_drive(subpath : str):
+    drive = DriverDocs()
     data_response, http_code = drive.request_process( request, subpath )
+    logger.info( 'http_code: ' + str(http_code) + ' message: ' + str(data_response['message']) + ' data: ' + str(data_response)[:100] + '...' )
     del drive
     return jsonify(data_response), http_code
 
