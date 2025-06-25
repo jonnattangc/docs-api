@@ -10,6 +10,7 @@ try:
     import uuid
     import requests
     import hashlib
+    import unicodedata
 
 except ImportError:
     logging.error(ImportError)
@@ -326,6 +327,17 @@ class Aws() :
         logging.info("[Docs] AWS Time S3 Docs Response in " + str(diff) + " sec." )
         return elements
 
+    # ==============================================================================
+    # limpia texto y normaliza sus letras
+    # ==============================================================================
+    def clean_text( self, texto: str ) :
+        text : str = unicodedata.normalize('NFD', texto)
+        text = ''.join(char for char in text if unicodedata.category(char) != 'Mn')
+        text = text.replace('ñ', 'n').replace('Ñ', 'N')
+        # text = text.replace(' ', '')
+        text = text.lower()
+        return text 
+
     def read_file( self, data = None ) :
         element = None
         m1 = time.monotonic()
@@ -341,8 +353,10 @@ class Aws() :
                     for obj in bucket.objects.filter(Prefix='docs/') :
                         if obj.key == None or obj.key.endswith('/'):
                             continue
-                        logging.info('[Docs] File Solicitado: ' + str(data['name_file']) + ' y Encontrado: ' + obj.key)
-                        if str(obj.key).find(str(data['name_file'])) >= 0 and str(obj.key).find(str(data['folder'])) >= 0 :
+                        aws_file_name :str = self.clean_text(str(obj.key))
+                        solicitude_file_name : str = self.clean_text(str(data['name_file']))
+                        logging.info('[Docs] File Solicitado: ' + solicitude_file_name + ' y Encontrado: ' + aws_file_name )
+                        if aws_file_name.find(solicitude_file_name) >= 0 and aws_file_name.find(str(data['folder'])) >= 0 :
                             url_file : str = self.url_base + obj.bucket_name + '/' + obj.key
                             response = requests.get(url_file, stream=True)
                             file_content = response.content
@@ -350,7 +364,7 @@ class Aws() :
                             if md5_calculated :
                                 if md5_calculated != data['md5sum'] :
                                     logging.error("MD5 NO Coinciden, Calculado: " + str(md5_calculated))
-                                    logging.error("Contenido: " + str(response.content))
+                                    logging.error("Contenido: " + str(response.content)[:200] + '...')
                                     code_http = 409
                                     element = None
                                     break

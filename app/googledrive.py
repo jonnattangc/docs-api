@@ -47,8 +47,8 @@ class DriverDocs () :
                 logging.info("Docs work folder: " + str(self.docs_folder) )
 
             self.apr_folder_id = str(os.environ.get('APREDIZ_FOLDER','None'))
-            self.mae_folder_id = str(os.environ.get('COMPANERO_FOLDER','None'))
-            self.com_folder_id = str(os.environ.get('MAESTRO_FOLDER','None'))
+            self.com_folder_id = str(os.environ.get('COMPANERO_FOLDER','None'))
+            self.mae_folder_id = str(os.environ.get('MAESTRO_FOLDER','None'))
 
             if self.apr_folder_id.find("None") >= 0 :
                 raise Exception("APR folder id: " + str(self.apr_folder_id) )
@@ -84,24 +84,21 @@ class DriverDocs () :
                 logging.info("Credentials file exist: " + str(self.credential_file) )
             else:
                 raise Exception("Credentials file not exist: " + str(self.credential_file) )
-
             GoogleAuth.DEFAULT_SETTINGS['client_config_file'] = self.credential_file
-            
             gauth = GoogleAuth()
-
             gauth.LoadCredentialsFile(self.credential_file)
-
             if gauth.credentials is None:
                 logging.info("Create access token" )
                 resp = gauth.LocalWebserverAuth()
-                logging.info("Pasoo" + str(resp) )
+                logging.info("Access token created Ok..." )
             elif gauth.access_token_expired:
                 logging.info("Refresh token" )
                 gauth.Refresh()
+                logging.info("token refreshed Ok..." )
             else:
                 logging.info("Auth Ok" )
                 gauth.Authorize()
-                message = "Authentication Ok"
+                message = "Authentication Ok..."
             gauth.SaveCredentialsFile(self.credential_file)
             credentials = GoogleDrive(gauth)
         except Exception as e :
@@ -110,9 +107,9 @@ class DriverDocs () :
            message = str(e)        
         return credentials, http_code, message
 
-    def get_folder_id (self, folder_name: str ) :
+    def get_grade_to_folder (self, folder_name: str ) :
         folder_id : str = self.apr_folder_id
-        fn = folder_name.lower().replace("/", "")
+        fn = folder_name.lower().replace("/", "").replace(" ", "").replace("\t", "").replace("\n", "")
         if fn == 'aprendiz' or fn == 'primero' or fn == '1' :
             folder_id = self.apr_folder_id
         elif fn == 'compañero' or fn == 'segundo' or fn == '2' :
@@ -123,16 +120,43 @@ class DriverDocs () :
             folder_id = self.apr_folder_id
         return folder_id
 
-    def list_folder (self, json_data ) :
+    def get_folder_to_grade (self, folder_id: str ) :
+        grade : str = '-'
+
+        if folder_id == self.apr_folder_id :
+            grade = '1'
+        elif folder_id == self.com_folder_id :
+            grade = '2'
+        elif folder_id == self.mae_folder_id :
+            grade = '3'
+        else :
+            grade = '-'
+        return grade
+
+    def list_files (self, json_data ) :
         msg = 'Servicio ejecutado correctamente'
         code = 200
         files = []
         try:
-            folder_id = json_data["folder_id"]
-            drive, code, error_msg = self.login()
-            if code != 200 :
-                return error_msg, code, files
-            query = "'{}' in parents".format(folder_id)
+            #folder_query = '("{}" in parents or "{}" in parents or "{}" in parents)'.format(self.apr_folder_id, self.mae_folder_id, self.com_folder_id)
+            folder_query = '('
+            folders = json_data["folders"]
+            if folders != None and len(folders) > 0 :
+                count = 0
+                for fld in folders :
+                    folder_id = self.get_grade_to_folder(str(fld))
+                    if count > 0 :
+                        folder_query += ' or '
+                    folder_query += "'{}' in parents".format(folder_id)
+                    count += 1
+                folder_query += ') and trashed=false'
+                logging.info('Folders query: ' + str(folder_query))
+            else :
+                msg = 'Error en la consulta de carpetas'
+                code = 500
+                return msg, code, files
+
+            query = folder_query
             filters = []
             try :
                 filters = json_data["filters"]
@@ -143,10 +167,17 @@ class DriverDocs () :
                     query += " and {} {} '{}'".format(str(f["filter_name"]), str(f["comparation"]), str(f["filter_value"]))
                 logging.info('Query whit Filters: ' + str(query))
             
-            files_list = drive.ListFile({'q': query}).GetList()
-            logging.info('Response ' + str(len(files_list)) + ' elementos')
-            for f in files_list:
+            drive, code, error_msg = self.login()
+            if code != 200 :
+                return error_msg, code, files
+
+            files_response = drive.ListFile({'q': query}).GetList()
+            for f in files_response:
+                f['grade_folder'] = self.get_folder_to_grade(str(f['parents'][0]['id']))
                 files.append(f)
+
+            logging.info('Response ' + str(len(files)) + ' elementos')
+
         except Exception as e :
            print("ERROR list_folder():", e)
            code = 500
@@ -174,7 +205,6 @@ class DriverDocs () :
             if filters != None and len(filters) > 0 :
                 for f in filters :
                     query += " and {} {} '{}'".format(str(f["filter_name"]), str(f["comparation"]), str(f["filter_value"]))
-            
                 logging.info('Query whit Filters: ' + str(query))
             
             files_list = drive.ListFile({'q': query}).GetList()
@@ -204,7 +234,7 @@ class DriverDocs () :
         code = 200
         data_rx = None
         try:
-            folder_id : str = self.get_folder_id(str(json_data["folder"]))
+            folder_id : str = self.get_grade_to_folder(str(json_data["folder"]))
             file_name :str = json_data["name_file"]
             logging.info("Folder ID: " + str(folder_id) + ', File Name: ' + str(file_name) )
             json_data["folder_id"] = folder_id
@@ -331,9 +361,10 @@ class DriverDocs () :
         if request.method == 'POST' :
             if str(subpath).find('login') >= 0 :
                 credentials, http_code, message = self.login()
-                logging.info("Login :" + str(credentials) )
+                message = str(credentials.GetAbout()['name']) + ' ' + message
+                logging.info("Login Name: " + str(credentials.GetAbout()['name']) + ' language: ' + str(credentials.GetAbout()['languageCode']) )
             if str(subpath).find('list') >= 0 :
-               message, http_code, data_response = self.list_folder(json_data)
+               message, http_code, data_response = self.list_files(json_data)
             if str(subpath).find('read') >= 0 :
                message, http_code, data_response = self.read_file(json_data)
             if str(subpath).find('search') >= 0 :

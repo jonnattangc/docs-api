@@ -6,8 +6,12 @@ __pycache__/
 app/client_secrets.json  
 app/credentials_module.json
 app/settings.yaml
-add/static/image/*
-add/static/docs/*
+
+app/static/image/*.png
+app/static/image/*.jpeg
+app/static/image/*.jpg
+app/static/docs/*.pdf
+app/static/docs/*.docx
 
 # C extensions
 *.so
