@@ -16,7 +16,7 @@ class Security() :
     host = os.environ.get('HOST_BD','None')
     user = os.environ.get('USER_BD','None')
     password = os.environ.get('PASS_BD','None')
-    database = 'security'
+    database = 'gral-purpose'
 
     def __init__(self) :
         try:

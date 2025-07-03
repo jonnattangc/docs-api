@@ -176,7 +176,7 @@ class DriverDocs () :
                 f['grade_folder'] = self.get_folder_to_grade(str(f['parents'][0]['id']))
                 files.append(f)
 
-            logging.info('Response ' + str(len(files)) + ' elementos')
+            logging.info('Response ' + str(len(files)) + ' elementos: ')
 
         except Exception as e :
            print("ERROR list_folder():", e)
@@ -361,7 +361,7 @@ class DriverDocs () :
         if request.method == 'POST' :
             if str(subpath).find('login') >= 0 :
                 credentials, http_code, message = self.login()
-                message = str(credentials.GetAbout()['name']) + ' ' + message
+                message = str(credentials.GetAbout()['name']) + ' ' + str(message)
                 logging.info("Login Name: " + str(credentials.GetAbout()['name']) + ' language: ' + str(credentials.GetAbout()['languageCode']) )
             if str(subpath).find('list') >= 0 :
                message, http_code, data_response = self.list_files(json_data)
