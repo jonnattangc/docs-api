@@ -8,6 +8,7 @@ try:
     from cipher import Cipher
     from flask import jsonify
     import base64
+    import hashlib
     from pydrive2.auth import GoogleAuth
     from pydrive2.drive import GoogleDrive
     from pydrive2.files import FileNotUploadedError
@@ -236,7 +237,7 @@ class DriverDocs () :
         try:
             folder_id : str = self.get_grade_to_folder(str(json_data["folder"]))
             file_name :str = json_data["name_file"]
-            logging.info("Folder ID: " + str(folder_id) + ', File Name: ' + str(file_name) )
+            logging.info("Folder ID: " + str(folder_id) + ', File Name: ' + str(file_name) + ', MD5: ' + str(json_data["md5sum"]) )
             json_data["folder_id"] = folder_id
             
             file_id, code, data_files = self.search_file(json_data)
@@ -257,6 +258,7 @@ class DriverDocs () :
             
             path_file : str = None
             file_b64 : str = None
+            md5_calculated : str = None
 
             require_detail : bool = False
             try :
@@ -276,10 +278,12 @@ class DriverDocs () :
                 file.GetContentFile(path_file)
                 file_bytes = None
                 with open(path_file, "rb") as pdf_file:
-                    file_bytes = base64.b64encode(pdf_file.read())
+                    flbytes = pdf_file.read()
+                    md5_calculated = self.calculate_md5(flbytes)
+                    file_bytes = base64.b64encode(flbytes)
                 if file_bytes != None :
                     file_b64 = file_bytes.decode('utf-8')
-            
+                
             if require_detail :
                 links = None 
                 try :
@@ -292,6 +296,7 @@ class DriverDocs () :
                     "link": file['embedLink'],
                     "internal_route": path_file,
                     "file_b64": file_b64,
+                    "md5": md5_calculated,
                     "title": file_name,
                     "size_bytes": file['fileSize'],
                     "created_date": file['createdDate'],
@@ -301,9 +306,10 @@ class DriverDocs () :
             else :
                 data_rx = {
                     "title": drive_file_title,
+                    "md5": md5_calculated,
                     "size_bytes": file['fileSize'],
                     "type": file['mimeType'],
-                    "file_b64": file_b64
+                    "file_b64": file_b64,
                 }
 
         except Exception as e :
@@ -375,3 +381,11 @@ class DriverDocs () :
 
         response = {"data": data_response, "message" : message }
         return  response, http_code
+
+    
+    def calculate_md5(self, data_bytes):
+        if data_bytes is None:
+            return None
+        md5_hash = hashlib.md5()
+        md5_hash.update(data_bytes)
+        return md5_hash.hexdigest()

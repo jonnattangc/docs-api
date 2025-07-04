@@ -111,7 +111,7 @@ def unauthorized():
 def process_drive(subpath : str):
     drive = DriverDocs()
     data_response, http_code = drive.request_process( request, subpath )
-    logger.info( 'http_code: ' + str(http_code) + ' message: ' + str(data_response['message']) + ' data: ' + str(data_response)[:100] + '...' )
+    logger.info( 'http_code: ' + str(http_code) + ' message: ' + str(data_response['message']) + ' data: ' + str(data_response)[:200] + '...' )
     del drive
     return jsonify(data_response), http_code
 

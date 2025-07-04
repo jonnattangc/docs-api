@@ -360,7 +360,7 @@ class Aws() :
                             url_file : str = self.url_base + obj.bucket_name + '/' + obj.key
                             response = requests.get(url_file, stream=True)
                             file_content = response.content
-                            md5_calculated = self.calculate_md5(file_content)
+                            md5_calculated : str= self.calculate_md5(file_content)
                             if md5_calculated :
                                 if md5_calculated != data['md5sum'] :
                                     logging.error("MD5 NO Coinciden, Calculado: " + str(md5_calculated))
@@ -373,6 +373,7 @@ class Aws() :
                             element = {
                                 'type' : 'application/pdf',
                                 'file_b64' : encoded_content.decode('utf-8'),
+                                'md5': md5_calculated,
                                 'size_bytes' : obj.size
                             }
                             #logging.info('[Docs] Encontrado!!!!!!! URL: ' + str(element))

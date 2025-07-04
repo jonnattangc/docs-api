@@ -12,6 +12,7 @@ app/static/image/*.jpeg
 app/static/image/*.jpg
 app/static/docs/*.pdf
 app/static/docs/*.docx
+app/static/docs/*.png
 
 # C extensions
 *.so
