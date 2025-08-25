@@ -181,14 +181,19 @@ class DriverDocs(ADocsRepo) :
            files = []
         return msg, code, files
 
-    def search_file (self, json_data ) :
+    def search(self, json_data: str)  -> {dict, int} :
         msg = 'Servicio ejecutado correctamente'
         code = 200
         files = []
+        response = {}
         try:
             drive, code, error_msg = self.login()
             if code != 200 :
-                return error_msg, code, files
+                response = {
+                    'msg': error_msg,
+                    'files': files
+                }
+                return response, code
             
             folder_id : str = json_data["folder_id"]
             query = "'{}' in parents".format(folder_id)
@@ -223,7 +228,13 @@ class DriverDocs(ADocsRepo) :
            code = 500
            msg = str(e)
            files = []
-        return msg, code, files
+        
+        response = {
+            'msg': msg,
+            'files': files
+        }
+
+        return response, code
 
     def read_file (self, json_data ) :
         msg = 'Servicio ejecutado correctamente'
@@ -329,8 +340,6 @@ class DriverDocs(ADocsRepo) :
                message, http_code, data_response = self.list_files(json_data)
             if str(subpath).find('read') >= 0 :
                message, http_code, data_response = self.read_file(json_data)
-            if str(subpath).find('search') >= 0 :
-               message, http_code, data_response = self.search_file(json_data)
         elif method == 'GET' :
             if str(subpath).find('read') >= 0 :
                message, http_code, data_response = self.read_file(json_data)

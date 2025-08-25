@@ -32,6 +32,11 @@ class ADocsRepo(ABC):
     def process(self, subpath: str, json_data: str, method: str)  -> {dict, int} :
         pass
     
+    @abstractmethod
+    def search(self, json_data: str)  -> {dict, int} :
+        pass
+
+
     def evaluate_request(self, request, subpath: str)  -> {dict, int} :
         request_type = None
         data_rx = None
@@ -77,6 +82,9 @@ class ADocsRepo(ABC):
                 json_data = data_rx
         
         logging.info("JSON Data: " + str(json_data) )
+
+        if json_data != None and str(path).find('/search') > -1 and request.method == 'POST' :
+            return self.search( json_data )
 
         return self.process( path, json_data, str(request.method) )
 

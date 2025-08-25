@@ -65,6 +65,10 @@ class ApiDocs (ADocsRepo) :
     def get_implementation_name(self) -> str:
         return f"ApiDocs(v1.0.0)"
 
+    def search(self, json_data: str)  -> {dict, int} :
+        response = {"data": None, "message" : 'Not found' }
+        return  response, 404
+
     def pdf_to_text(self, file_path: str ):
         http_code  = 200
         document : str = ''
