@@ -8,23 +8,22 @@ try:
     from cipher import Cipher
     from flask import jsonify
     import base64
+    import hashlib
     from pydrive2.auth import GoogleAuth
     from pydrive2.drive import GoogleDrive
     from pydrive2.files import FileNotUploadedError
+    from adocsrepo import ADocsRepo
 
 except ImportError:
-
     logging.error(ImportError)
     print((os.linesep * 2).join(['[DriverDocs] Error al buscar los modulos:',
                                  str(sys.exc_info()[1]), 'Debes Instalarlos para continuar', 'Deteniendo...']))
     sys.exit(-2)
 
-
 ROOT_DIR : str = str(os.path.dirname(__file__))
 
-class DriverDocs () :
+class DriverDocs(ADocsRepo) :
     root_dir = None
-    api_key = None
     cipher = None
     credential_file : str = None
     docs_folder: str = None
@@ -36,7 +35,6 @@ class DriverDocs () :
     def __init__(self) :
         try:
             self.root_dir = ROOT_DIR
-            self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
             self.credential_file = str(os.environ.get('GOOGLE_CREDENTIALS_JSON', None))
             if self.credential_file == None:
                 raise Exception("GOOGLE_CREDENTIALS_JSON: " + str(self.credential_file) )
@@ -61,7 +59,6 @@ class DriverDocs () :
         except Exception as e :
             print("ERROR __init__ :", e)
             self.root_dir = None
-            self.api_key = None
             self.credential_file = None
             if self.cipher != None :
                 del self.cipher
@@ -69,7 +66,6 @@ class DriverDocs () :
 
     def __del__(self):
         self.root_dir = None
-        self.api_key = None
         if self.cipher != None :
             del self.cipher
         self.cipher = None
@@ -176,7 +172,7 @@ class DriverDocs () :
                 f['grade_folder'] = self.get_folder_to_grade(str(f['parents'][0]['id']))
                 files.append(f)
 
-            logging.info('Response ' + str(len(files)) + ' elementos')
+            logging.info('Response ' + str(len(files)) + ' elementos: ')
 
         except Exception as e :
            print("ERROR list_folder():", e)
@@ -236,7 +232,7 @@ class DriverDocs () :
         try:
             folder_id : str = self.get_grade_to_folder(str(json_data["folder"]))
             file_name :str = json_data["name_file"]
-            logging.info("Folder ID: " + str(folder_id) + ', File Name: ' + str(file_name) )
+            logging.info("Folder ID: " + str(folder_id) + ', File Name: ' + str(file_name) + ', MD5: ' + str(json_data["md5sum"]) )
             json_data["folder_id"] = folder_id
             
             file_id, code, data_files = self.search_file(json_data)
@@ -257,6 +253,7 @@ class DriverDocs () :
             
             path_file : str = None
             file_b64 : str = None
+            md5_calculated : str = None
 
             require_detail : bool = False
             try :
@@ -276,10 +273,12 @@ class DriverDocs () :
                 file.GetContentFile(path_file)
                 file_bytes = None
                 with open(path_file, "rb") as pdf_file:
-                    file_bytes = base64.b64encode(pdf_file.read())
+                    flbytes = pdf_file.read()
+                    md5_calculated = self.calculate_md5(flbytes)
+                    file_bytes = base64.b64encode(flbytes)
                 if file_bytes != None :
                     file_b64 = file_bytes.decode('utf-8')
-            
+                
             if require_detail :
                 links = None 
                 try :
@@ -292,6 +291,7 @@ class DriverDocs () :
                     "link": file['embedLink'],
                     "internal_route": path_file,
                     "file_b64": file_b64,
+                    "md5": md5_calculated,
                     "title": file_name,
                     "size_bytes": file['fileSize'],
                     "created_date": file['createdDate'],
@@ -301,9 +301,10 @@ class DriverDocs () :
             else :
                 data_rx = {
                     "title": drive_file_title,
+                    "md5": md5_calculated,
                     "size_bytes": file['fileSize'],
                     "type": file['mimeType'],
-                    "file_b64": file_b64
+                    "file_b64": file_b64,
                 }
 
         except Exception as e :
@@ -313,55 +314,16 @@ class DriverDocs () :
            path_file = None
         return msg, code, data_rx
 
-    def request_process(self, request, subpath ) :
+    def process(self, subpath: str, json_data: str, method: str)  -> {dict, int} :
         message = "Servicio ejecutado exitosamente"
         http_code  = 200
         data_response = None
         response =  {"message" : message, "data": data_response}
-        json_data = None
-        logging.info("Reciv " + str(request.method) + " Contex: /docs/drive/" + str(subpath) )
-        #logging.info("Reciv Header :\n" + str(request.headers) )
-        #logging.info("Reciv Data: " + str(request.data) )
-        rx_api_key = request.headers.get('x-api-key')
-        if rx_api_key == None :
-            response = {"message" : "No autorizado", "data": data_response }
-            http_code  = 401
-            return  response, http_code
-        if str(rx_api_key) != str(self.api_key) :
-            response = {"message" : "No autorizado", "data": data_response }
-            http_code  = 401
-            return  response, http_code
         
-        request_data = request.get_json()
-        request_type = None
-        data_rx = None
-        try :
-            request_type = request_data['type']
-        except Exception as e :
-            request_type = None
-        try :
-            data_rx = request_data['data']
-        except Exception as e :
-            data_rx = None
-        if request_type != None :
-            # encrypted or inclear
-            if data_rx != None and str(request_type) == 'encrypted' and request.method == 'POST' :
-                data_cipher = str(data_rx)
-                logging.info('Data Encrypt: ' + str(data_cipher) )
-                data_clear = self.cipher.aes_decrypt(data_cipher)
-                logging.info('Data EnClaro: ' + str(data_clear) )
-                json_data = json.dumps(data_clear)
-            else: 
-                json_data = data_rx
-        else: 
-                json_data = data_rx
-        
-        logging.info("JSON :" + str(json_data) )
-
-        if request.method == 'POST' :
+        if method == 'POST' :
             if str(subpath).find('login') >= 0 :
                 credentials, http_code, message = self.login()
-                message = str(credentials.GetAbout()['name']) + ' ' + message
+                message = str(credentials.GetAbout()['name']) + ' ' + str(message)
                 logging.info("Login Name: " + str(credentials.GetAbout()['name']) + ' language: ' + str(credentials.GetAbout()['languageCode']) )
             if str(subpath).find('list') >= 0 :
                message, http_code, data_response = self.list_files(json_data)
@@ -369,9 +331,18 @@ class DriverDocs () :
                message, http_code, data_response = self.read_file(json_data)
             if str(subpath).find('search') >= 0 :
                message, http_code, data_response = self.search_file(json_data)
-        elif request.method == 'GET' :
+        elif method == 'GET' :
             if str(subpath).find('read') >= 0 :
                message, http_code, data_response = self.read_file(json_data)
 
         response = {"data": data_response, "message" : message }
         return  response, http_code
+    def get_implementation_name(self) -> str:
+        return f"GoogleDrive(v1.0.0)"
+    
+    def calculate_md5(self, data_bytes):
+        if data_bytes is None:
+            return None
+        md5_hash = hashlib.md5()
+        md5_hash.update(data_bytes)
+        return md5_hash.hexdigest()

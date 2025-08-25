@@ -11,6 +11,7 @@ try:
     import requests
     import hashlib
     import unicodedata
+    from adocsrepo import ADocsRepo
 
 except ImportError:
     logging.error(ImportError)
@@ -19,7 +20,7 @@ except ImportError:
 
 ROOT_DIR = os.path.dirname(__file__)
 
-class Aws() :
+class Aws(ADocsRepo) :
     access_key : str = os.environ.get('AWS_ACCESS_KEY','None')
     secret_key : str = os.environ.get('AWS_SECRET_KEY','None')
     aws_bucket : str = os.environ.get('AWS_BUCKET_NAME','None')
@@ -54,6 +55,41 @@ class Aws() :
         del self.s3_resource
         self.s3_resource = None
 
+    def process(self, subpath: str, json_data: str, method: str)  -> {dict, int} :
+        http_code  = 200
+        data_response = None
+        success_message : str = 'Servicio ejecutado exitosamente'
+        no_found_message : str = 'Servicio no implementado o no encontrado'
+        response =  {"message" : success_message, "data": data_response}
+
+        if method == 'POST' :
+            if subpath.find('upload') < 0 :
+                logging.info("Payload JSON :" + str(json_data) )
+            if subpath.find('search') >= 0 :
+                data_response, http_code = self.search_file( json_data )
+            if subpath.find('read') >= 0 :
+                data_response, http_code = self.read_file( data = json_data )
+            elif subpath.find('upload') >= 0 :
+                data_response, http_code =  self.s3_uploader( request_data = json_data )
+            else :
+                data_response = {'statusCode' : 404, 'status': no_found_message}
+                http_code = 404
+        elif method == 'GET' :
+            if subpath.find('list') >= 0 :
+                data_response, http_code = self.s3_object_list()
+            elif subpath.find('test') >= 0 :
+                data_response, http_code = self.test_aws()
+            else :
+                data_response = {'statusCode' : 404, 'status': no_found_message}
+                http_code = 404
+        else :
+            data_response = {'statusCode' : 404, 'status': no_found_message}
+            http_code = 404
+        response = {"data": data_response, "message" : success_message }
+        return  response, http_code
+    
+    def get_implementation_name(self) -> str:
+        return f"Aws(v1.0.0)"
     # ==============================================================================
     # Procesa todos los request 
     # ==============================================================================
@@ -360,7 +396,7 @@ class Aws() :
                             url_file : str = self.url_base + obj.bucket_name + '/' + obj.key
                             response = requests.get(url_file, stream=True)
                             file_content = response.content
-                            md5_calculated = self.calculate_md5(file_content)
+                            md5_calculated : str= self.calculate_md5(file_content)
                             if md5_calculated :
                                 if md5_calculated != data['md5sum'] :
                                     logging.error("MD5 NO Coinciden, Calculado: " + str(md5_calculated))
@@ -373,6 +409,7 @@ class Aws() :
                             element = {
                                 'type' : 'application/pdf',
                                 'file_b64' : encoded_content.decode('utf-8'),
+                                'md5': md5_calculated,
                                 'size_bytes' : obj.size
                             }
                             #logging.info('[Docs] Encontrado!!!!!!! URL: ' + str(element))

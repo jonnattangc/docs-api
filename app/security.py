@@ -16,7 +16,7 @@ class Security() :
     host = os.environ.get('HOST_BD','None')
     user = os.environ.get('USER_BD','None')
     password = os.environ.get('PASS_BD','None')
-    database = 'security'
+    database = 'gral-purpose'
 
     def __init__(self) :
         try:
@@ -54,6 +54,7 @@ class Security() :
                     passwordBd = str(row['password'])
                     userBd = str(row['username'])
                 if userBd != None and passwordBd != None :
+                    # logging.info("Verifico password: " + str(password) )
                     check = check_password_hash(passwordBd, password )
                     if userBd != username or not check :
                       userBd = None
