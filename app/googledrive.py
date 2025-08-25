@@ -12,20 +12,18 @@ try:
     from pydrive2.auth import GoogleAuth
     from pydrive2.drive import GoogleDrive
     from pydrive2.files import FileNotUploadedError
+    from adocsrepo import ADocsRepo
 
 except ImportError:
-
     logging.error(ImportError)
     print((os.linesep * 2).join(['[DriverDocs] Error al buscar los modulos:',
                                  str(sys.exc_info()[1]), 'Debes Instalarlos para continuar', 'Deteniendo...']))
     sys.exit(-2)
 
-
 ROOT_DIR : str = str(os.path.dirname(__file__))
 
-class DriverDocs () :
+class DriverDocs(ADocsRepo) :
     root_dir = None
-    api_key = None
     cipher = None
     credential_file : str = None
     docs_folder: str = None
@@ -37,7 +35,6 @@ class DriverDocs () :
     def __init__(self) :
         try:
             self.root_dir = ROOT_DIR
-            self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
             self.credential_file = str(os.environ.get('GOOGLE_CREDENTIALS_JSON', None))
             if self.credential_file == None:
                 raise Exception("GOOGLE_CREDENTIALS_JSON: " + str(self.credential_file) )
@@ -62,7 +59,6 @@ class DriverDocs () :
         except Exception as e :
             print("ERROR __init__ :", e)
             self.root_dir = None
-            self.api_key = None
             self.credential_file = None
             if self.cipher != None :
                 del self.cipher
@@ -70,7 +66,6 @@ class DriverDocs () :
 
     def __del__(self):
         self.root_dir = None
-        self.api_key = None
         if self.cipher != None :
             del self.cipher
         self.cipher = None
@@ -319,52 +314,13 @@ class DriverDocs () :
            path_file = None
         return msg, code, data_rx
 
-    def request_process(self, request, subpath ) :
+    def process(self, subpath: str, json_data: str, method: str)  -> {dict, int} :
         message = "Servicio ejecutado exitosamente"
         http_code  = 200
         data_response = None
         response =  {"message" : message, "data": data_response}
-        json_data = None
-        logging.info("Reciv " + str(request.method) + " Contex: /docs/drive/" + str(subpath) )
-        #logging.info("Reciv Header :\n" + str(request.headers) )
-        #logging.info("Reciv Data: " + str(request.data) )
-        rx_api_key = request.headers.get('x-api-key')
-        if rx_api_key == None :
-            response = {"message" : "No autorizado", "data": data_response }
-            http_code  = 401
-            return  response, http_code
-        if str(rx_api_key) != str(self.api_key) :
-            response = {"message" : "No autorizado", "data": data_response }
-            http_code  = 401
-            return  response, http_code
         
-        request_data = request.get_json()
-        request_type = None
-        data_rx = None
-        try :
-            request_type = request_data['type']
-        except Exception as e :
-            request_type = None
-        try :
-            data_rx = request_data['data']
-        except Exception as e :
-            data_rx = None
-        if request_type != None :
-            # encrypted or inclear
-            if data_rx != None and str(request_type) == 'encrypted' and request.method == 'POST' :
-                data_cipher = str(data_rx)
-                logging.info('Data Encrypt: ' + str(data_cipher) )
-                data_clear = self.cipher.aes_decrypt(data_cipher)
-                logging.info('Data EnClaro: ' + str(data_clear) )
-                json_data = json.dumps(data_clear)
-            else: 
-                json_data = data_rx
-        else: 
-                json_data = data_rx
-        
-        logging.info("JSON :" + str(json_data) )
-
-        if request.method == 'POST' :
+        if method == 'POST' :
             if str(subpath).find('login') >= 0 :
                 credentials, http_code, message = self.login()
                 message = str(credentials.GetAbout()['name']) + ' ' + str(message)
@@ -375,13 +331,14 @@ class DriverDocs () :
                message, http_code, data_response = self.read_file(json_data)
             if str(subpath).find('search') >= 0 :
                message, http_code, data_response = self.search_file(json_data)
-        elif request.method == 'GET' :
+        elif method == 'GET' :
             if str(subpath).find('read') >= 0 :
                message, http_code, data_response = self.read_file(json_data)
 
         response = {"data": data_response, "message" : message }
         return  response, http_code
-
+    def get_implementation_name(self) -> str:
+        return f"GoogleDrive(v1.0.0)"
     
     def calculate_md5(self, data_bytes):
         if data_bytes is None:

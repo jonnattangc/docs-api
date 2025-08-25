@@ -54,6 +54,7 @@ class Security() :
                     passwordBd = str(row['password'])
                     userBd = str(row['username'])
                 if userBd != None and passwordBd != None :
+                    # logging.info("Verifico password: " + str(password) )
                     check = check_password_hash(passwordBd, password )
                     if userBd != username or not check :
                       userBd = None

@@ -17,6 +17,7 @@ try:
     from googledrive import DriverDocs
     from api_docu import ApiDocs
     from aws_s3 import Aws
+    from adocsrepo import ADocsRepo 
 
 except ImportError:
 
@@ -68,10 +69,7 @@ ROOT_DIR = os.path.dirname(__file__)
 @csrf.exempt
 def index():
     return redirect('/info'), 302
-@app.route('/docs/<path:subpath>', methods=['POST', 'GET'])
-@csrf.exempt
-def other():
-    return redirect('/info'), 302
+
 #===============================================================================
 # Informaci'on
 #===============================================================================
@@ -100,49 +98,38 @@ def verify_password(username, password):
 #==================================================================================
 @auth.error_handler
 def unauthorized():
-    return make_response(jsonify({'message':'invalid credentials'}), 401)
+    return make_response(jsonify({ 'data': None, 'message':'invalid credentials for basic auth'}), 401)
 
-# ==============================================================================
-# Procesa peticiones de docs en drive
-# ==============================================================================
-@app.route('/docs/drive/<path:subpath>', methods=['POST', 'GET'])
+@app.route('/docs/<path:subpath>', methods=['POST', 'GET'])
 @csrf.exempt
 @auth.login_required
-def process_drive(subpath : str):
-    drive = DriverDocs()
-    data_response, http_code = drive.request_process( request, subpath )
-    logger.info( 'http_code: ' + str(http_code) + ' message: ' + str(data_response['message']) + ' data: ' + str(data_response)[:200] + '...' )
-    del drive
-    return jsonify(data_response), http_code
+def process_all(subpath : str):
+    data_response = {'message':'No Found', 'data': None}
+    http_code = 404
+    implement : ADocsRepo = None
+    if subpath.startswith('drive/') :
+        implement = DriverDocs()
+    elif subpath.startswith('s3/') :
+        implement = Aws()
+    elif subpath.startswith('api/') :
+        implement = ApiDocs()
+    else:
+        logger.info( 'No se encontro implementacion para: ' + str(subpath) )
+    
+    if implement != None :
+        data_response, http_code = implement.evaluate_request( request, str(subpath) )
+        logger.info( 'Procesado por ' + str(implement) )
+        del implement
 
-# ==============================================================================
-# Procesa peticiones de docs en s3
-# ==============================================================================
-@app.route('/docs/s3/<path:subpath>', methods=['POST', 'GET'])
-@csrf.exempt
-@auth.login_required
-def process_s3(subpath):
-    aws = Aws( )
-    data_response, http_code = aws.request_process( request, str(subpath) )
-    del aws
-    return jsonify(data_response), http_code
+    return jsonify(data_response), http_code  
 
 @app.route('/docs/api', methods=['POST', 'GET'])
 @csrf.exempt
 @auth.login_required
 def process_api_only():
-    api = ApiDocs()
-    data_response, http_code = api.request_process( request, '' )
-    del api
-    return jsonify(data_response), http_code
-
-@app.route('/docs/api/<path:subpath>', methods=['POST', 'GET'])
-@csrf.exempt
-@auth.login_required
-def process_api(subpath):
-    api = ApiDocs()
-    data_response, http_code = api.request_process( request, subpath )
-    del api
+    implement = ApiDocs()
+    data_response, http_code = implement.evaluate_request( request, None )
+    del implement
     return jsonify(data_response), http_code
 
 # ===============================================================================
