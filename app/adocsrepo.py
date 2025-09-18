@@ -5,6 +5,7 @@ try:
     import json
     from cipher import Cipher
     from abc import ABC, abstractmethod
+    import hashlib
 
 except ImportError:
     logging.error(ImportError)
@@ -18,7 +19,7 @@ class ADocsRepo(ABC):
     api_key : str = None
     cipher : Cipher= None
 
-    def __init__(self, api_key: str, cipher: Cipher) -> None:
+    def __init__(self,) -> None:
         self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
         self.cipher = Cipher()
 
@@ -36,6 +37,9 @@ class ADocsRepo(ABC):
     def search(self, json_data: str)  -> {dict, int} :
         pass
 
+    @abstractmethod
+    def list(self, json_data: str)  -> {dict, int} :
+        pass
 
     def evaluate_request(self, request, subpath: str)  -> {dict, int} :
         request_type = None
@@ -54,8 +58,10 @@ class ADocsRepo(ABC):
 
         rx_api_key = request.headers.get('x-api-key')
         if rx_api_key == None :
+            logging.info("No Header 'x-api-key'")
             return  response, http_code
         if str(rx_api_key) != str(self.api_key) :
+            logging.info("x-api-key no autorizado: " + str(self.api_key) + ' <> ' + str(rx_api_key) )
             return  response, http_code
         try :
             request_data = request.get_json()
@@ -85,6 +91,9 @@ class ADocsRepo(ABC):
 
         if json_data != None and str(path).find('/search') > -1 and request.method == 'POST' :
             return self.search( json_data )
+        
+        if str(path).find('/list') > -1 :
+            return self.list( json_data )
 
         return self.process( path, json_data, str(request.method) )
 
@@ -95,3 +104,10 @@ class ADocsRepo(ABC):
 
     def __str__(self):
         return f"'{self.get_implementation_name()}' "
+
+    def calculate_md5(self, data_bytes):
+        if data_bytes is None:
+            return None
+        md5_hash = hashlib.md5()
+        md5_hash.update(data_bytes)
+        return md5_hash.hexdigest()

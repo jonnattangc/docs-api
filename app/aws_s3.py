@@ -26,7 +26,6 @@ class Aws(ADocsRepo) :
     aws_bucket : str = os.environ.get('AWS_BUCKET_NAME','None')
     aws_region : str = os.environ.get('AWS_REGION','us-east-1')
     url_base : str = 'https://s3.' + aws_region + '.amazonaws.com/'
-    api_key : str = None
     s3_resource = None
     s3 = None
     root  : str = '.'
@@ -35,9 +34,9 @@ class Aws(ADocsRepo) :
     # Constructor
     # ==============================================================================
     def __init__(self, root = str(ROOT_DIR)) :
+        super().__init__()
         try :
             self.root = root
-            self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
             session = boto3.Session(aws_access_key_id=self.access_key, aws_secret_access_key=self.secret_key)
             if session is None :
                 raise Exception("AWS Session is None")
@@ -73,9 +72,7 @@ class Aws(ADocsRepo) :
                 data_response = {'statusCode' : 404, 'status': no_found_message}
                 http_code = 404
         elif method == 'GET' :
-            if subpath.find('list') >= 0 :
-                data_response, http_code = self.s3_object_list()
-            elif subpath.find('test') >= 0 :
+            if subpath.find('test') >= 0 :
                 data_response, http_code = self.test_aws()
             else :
                 data_response = {'statusCode' : 404, 'status': no_found_message}
@@ -218,7 +215,7 @@ class Aws(ADocsRepo) :
     # ==============================================================================
     # Lista de cosas en s3
     # ==============================================================================
-    def s3_object_list( self ) :
+    def list(self, json_data: str)  -> {dict, int} :
         http_code = 409
         data = {}
         m1 = time.monotonic_ns()
@@ -342,10 +339,3 @@ class Aws(ADocsRepo) :
         diff = time.monotonic() - m1
         logging.info("[Docs] AWS Time S3 Docs Response in " + str(diff) + " sec." )
         return element, code_http
-
-    def calculate_md5(self, data_bytes):
-        if data_bytes is None:
-            return None
-        md5_hash = hashlib.md5()
-        md5_hash.update(data_bytes)
-        return md5_hash.hexdigest()

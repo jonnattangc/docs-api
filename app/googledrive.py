@@ -33,6 +33,7 @@ class DriverDocs(ADocsRepo) :
     com_folder_id: str = None
 
     def __init__(self) :
+        super().__init__()
         try:
             self.root_dir = ROOT_DIR
             self.credential_file = str(os.environ.get('GOOGLE_CREDENTIALS_JSON', None))
@@ -129,11 +130,12 @@ class DriverDocs(ADocsRepo) :
             grade = '-'
         return grade
 
-    def list_files (self, json_data ) :
+    def list(self, json_data: str)  -> {dict, int} :
         msg = 'Servicio ejecutado correctamente'
         code = 200
         files = []
         try:
+            logging.info('json_data: ' + str(json_data))
             #folder_query = '("{}" in parents or "{}" in parents or "{}" in parents)'.format(self.apr_folder_id, self.mae_folder_id, self.com_folder_id)
             folder_query = '('
             folders = json_data["folders"]
@@ -336,8 +338,6 @@ class DriverDocs(ADocsRepo) :
                 credentials, http_code, message = self.login()
                 message = str(credentials.GetAbout()['name']) + ' ' + str(message)
                 logging.info("Login Name: " + str(credentials.GetAbout()['name']) + ' language: ' + str(credentials.GetAbout()['languageCode']) )
-            if str(subpath).find('list') >= 0 :
-               message, http_code, data_response = self.list_files(json_data)
             if str(subpath).find('read') >= 0 :
                message, http_code, data_response = self.read_file(json_data)
         elif method == 'GET' :
@@ -349,9 +349,3 @@ class DriverDocs(ADocsRepo) :
     def get_implementation_name(self) -> str:
         return f"GoogleDrive(v1.0.0)"
     
-    def calculate_md5(self, data_bytes):
-        if data_bytes is None:
-            return None
-        md5_hash = hashlib.md5()
-        md5_hash.update(data_bytes)
-        return md5_hash.hexdigest()
