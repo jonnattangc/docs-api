@@ -76,27 +76,33 @@ class DriverDocs(ADocsRepo) :
         http_code  = 200
         message = None
         try:
+            logging.info("Credentials file exist verify: " + str(self.credential_file) )
             if os.path.exists(self.credential_file):
-                # os.chmod(self.credential_file, 0o755)
                 logging.info("Credentials file exist: " + str(self.credential_file) )
             else:
                 raise Exception("Credentials file not exist: " + str(self.credential_file) )
+            logging.info("Seteando client_config_file: " + str(self.credential_file) )
             GoogleAuth.DEFAULT_SETTINGS['client_config_file'] = self.credential_file
+            logging.info("Archivo de credenciales seteado OK" )
             gauth = GoogleAuth()
+            logging.info("Cargo archivo de credenciales... ")
             gauth.LoadCredentialsFile(self.credential_file)
+            logging.info("Cargado OK, ahora hago login..." )
             if gauth.credentials is None:
                 logging.info("Create access token" )
                 resp = gauth.LocalWebserverAuth()
                 logging.info("Access token created Ok..." )
+                gauth.SaveCredentialsFile(self.credential_file)
             elif gauth.access_token_expired:
                 logging.info("Refresh token" )
                 gauth.Refresh()
                 logging.info("token refreshed Ok..." )
+                logging.info("Ultima parte del login...  guardar credenciales (caso refresh)" )
+                gauth.SaveCredentialsFile(self.credential_file)
             else:
                 logging.info("Auth Ok" )
                 gauth.Authorize()
                 message = "Authentication Ok..."
-            gauth.SaveCredentialsFile(self.credential_file)
             credentials = GoogleDrive(gauth)
         except Exception as e :
            print("ERROR login(): ", e)

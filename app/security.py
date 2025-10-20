@@ -40,7 +40,7 @@ class Security() :
     def isConnect(self) :
         return self.db != None
 
-    def verifiyUserPass( self, username, password ) :
+    def verifiy_user_pass( self, username, password ) :
         logging.info("Rescato password para usuario: " + str(username) )
         passwordBd = None
         userBd = None
@@ -63,7 +63,7 @@ class Security() :
             print("ERROR BD:", e)
         return userBd
 
-    def generateUser(self, user, password) :
+    def generate_user(self, user, password) :
         logging.info("Genero nuevo usuario: " + str(user) )
         try :
             if self.db != None :

@@ -88,9 +88,9 @@ def info_proccess():
 def verify_password(username, password):
     user = None
     if username != None :
-        basicAuth = Security()
-        user =  basicAuth.verifiyUserPass(username, password)
-        del basicAuth
+        basic_auth = Security()
+        user =  basic_auth.verifiy_user_pass(username, password)
+        del basic_auth
     return user
 
 #==================================================================================
@@ -122,15 +122,6 @@ def process_all(subpath : str):
         del implement
 
     return jsonify(data_response), http_code  
-
-@app.route('/docs/api', methods=['POST', 'GET'])
-@csrf.exempt
-@auth.login_required
-def process_api_only():
-    implement = ApiDocs()
-    data_response, http_code = implement.evaluate_request( request, None )
-    del implement
-    return jsonify(data_response), http_code
 
 # ===============================================================================
 # Favicon
