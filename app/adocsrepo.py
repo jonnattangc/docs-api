@@ -18,7 +18,7 @@ class ADocsRepo(ABC):
     api_key : str = None
     cipher : Cipher= None
 
-    def __init__(self, api_key: str, cipher: Cipher) -> None:
+    def __init__(self, ) -> None:
         self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
         self.cipher = Cipher()
 
@@ -51,7 +51,8 @@ class ADocsRepo(ABC):
         if rx_api_key == None :
             return  response, http_code
         if str(rx_api_key) != str(self.api_key) :
-            return  response, http_code
+            logging.error(f"API Key: {rx_api_key} != {self.api_key}" )
+            return response, http_code
         try :
             request_data = request.get_json()
             request_type = request_data['type']
