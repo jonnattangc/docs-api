@@ -15,6 +15,7 @@ try:
     # Clases personales
     from security import Security
     from googledrive import DriverDocs
+    from driverepo import DriverRepo
     from api_docu import ApiDocs
     from aws_s3 import Aws
     from adocsrepo import ADocsRepo 
@@ -109,6 +110,8 @@ def process_all(subpath : str):
     implement : ADocsRepo = None
     if subpath.startswith('drive/') :
         implement = DriverDocs()
+    elif subpath.startswith('v2/drive/') :
+        implement = DriverRepo()
     elif subpath.startswith('s3/') :
         implement = Aws()
     elif subpath.startswith('api/') :

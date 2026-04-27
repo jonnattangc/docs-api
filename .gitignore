@@ -3,6 +3,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+app/credential-logia.json
 app/client_secrets.json  
 app/credentials_module.json
 app/settings.yaml
