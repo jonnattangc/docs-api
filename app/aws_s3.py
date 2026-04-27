@@ -26,7 +26,6 @@ class Aws(ADocsRepo) :
     aws_bucket : str = os.environ.get('AWS_BUCKET_NAME','None')
     aws_region : str = os.environ.get('AWS_REGION','us-east-1')
     url_base : str = 'https://s3.' + aws_region + '.amazonaws.com/'
-    api_key : str = None
     s3_resource = None
     s3 = None
     root  : str = '.'
@@ -35,9 +34,9 @@ class Aws(ADocsRepo) :
     # Constructor
     # ==============================================================================
     def __init__(self, root = str(ROOT_DIR)) :
+        super().__init__()
         try :
             self.root = root
-            self.api_key = str(os.environ.get('SERVER_API_KEY','None'))
             session = boto3.Session(aws_access_key_id=self.access_key, aws_secret_access_key=self.secret_key)
             if session is None :
                 raise Exception("AWS Session is None")
@@ -65,8 +64,6 @@ class Aws(ADocsRepo) :
         if method == 'POST' :
             if subpath.find('upload') < 0 :
                 logging.info("Payload JSON :" + str(json_data) )
-            if subpath.find('search') >= 0 :
-                data_response, http_code = self.search_file( json_data )
             if subpath.find('read') >= 0 :
                 data_response, http_code = self.read_file( data = json_data )
             elif subpath.find('upload') >= 0 :
@@ -75,9 +72,7 @@ class Aws(ADocsRepo) :
                 data_response = {'statusCode' : 404, 'status': no_found_message}
                 http_code = 404
         elif method == 'GET' :
-            if subpath.find('list') >= 0 :
-                data_response, http_code = self.s3_object_list()
-            elif subpath.find('test') >= 0 :
+            if subpath.find('test') >= 0 :
                 data_response, http_code = self.test_aws()
             else :
                 data_response = {'statusCode' : 404, 'status': no_found_message}
@@ -90,84 +85,7 @@ class Aws(ADocsRepo) :
     
     def get_implementation_name(self) -> str:
         return f"Aws(v1.0.0)"
-    # ==============================================================================
-    # Procesa todos los request 
-    # ==============================================================================
-    def request_process(self, request, action : str ) :
-        http_code  = 200
-        data_response = None
-        success_message : str = 'Servicio ejecutado exitosamente'
-        no_found_message : str = 'Servicio no implementado o no encontrado'
-        response =  {"message" : success_message, "data": data_response}
-        json_data = None
-        logging.info("Reciv " + str(request.method) + " Acción: /docs/s3/" + action )
 
-        rx_api_key = request.headers.get('x-api-key')
-        if rx_api_key == None :
-            response = {"message" : "Api key no encontrada", "data": data_response }
-            http_code  = 401
-            return  response, http_code
-        if str(rx_api_key) != str(self.api_key) :
-            response = {"message" : "Api key no es valida", "data": data_response }
-            http_code  = 401
-            return  response, http_code
-        
-        path : str = None 
-        if action != None : 
-            path = action.lower().strip()
-
-        if request.method == 'POST' :
-            request_data = request.get_json()
-            request_type = None
-            data_rx = None
-            try :
-                request_type = request_data['type']
-            except Exception as e :
-                request_type = None
-            try :
-                data_rx = request_data['data']
-            except Exception as e :
-                data_rx = None
-
-            if request_type != None :
-                # encrypted or inclear
-                if data_rx != None and str(request_type) == 'encrypted' :
-                    data_cipher = str(data_rx)
-                    logging.info('Data Encrypt: ' + str(data_cipher) )
-                    data_clear = self.cipher.aes_decrypt(data_cipher)
-                    logging.info('Data EnClaro: ' + str(data_clear) )
-                    json_data = json.dumps(data_clear)
-                else: 
-                    json_data = data_rx
-            else: 
-                    json_data = data_rx
-            
-            if path.find('upload') < 0 :
-                logging.info("Payload JSON :" + str(json_data) )
-            
-            if path.find('search') >= 0 :
-                data_response, http_code = self.search_file( json_data )
-            if path.find('read') >= 0 :
-                data_response, http_code = self.read_file( data = json_data )
-            elif path.find('upload') >= 0 :
-                data_response, http_code =  self.s3_uploader( request_data = json_data )
-            else :
-                data_response = {'statusCode' : 404, 'status': no_found_message}
-                http_code = 404
-        elif request.method == 'GET' :
-            if path.find('list') >= 0 :
-                data_response, http_code = self.s3_object_list()
-            elif path.find('test') >= 0 :
-                data_response, http_code = self.test_aws()
-            else :
-                data_response = {'statusCode' : 404, 'status': no_found_message}
-                http_code = 404
-        else :
-            data_response = {'statusCode' : 404, 'status': no_found_message}
-            http_code = 404
-        response = {"data": data_response, "message" : success_message }
-        return  response, http_code
-    
     def s3_uploader( self, request_data = None ) :
         data_response = {}
         http_code = 201
@@ -215,7 +133,6 @@ class Aws(ADocsRepo) :
         logging.info("[S3] Servicio Ejecutado en " + str(diff) + " sec." )
         return data_response, http_code 
 
-
     def test_aws( self ) :
         retorno = {'serviceStatus': False }
         status = 200
@@ -229,7 +146,7 @@ class Aws(ADocsRepo) :
         logging.info("[STATUS] Servicio Ejecutado en " + str(diff) + " msec." )
         return retorno, status 
     
-    def search_file (self, json_data ) :
+    def search(self, json_data: str)  -> {dict, int} :
         msg = 'Servicio ejecutado correctamente'
         code_http = 200
         files_response  : list = []
@@ -298,7 +215,7 @@ class Aws(ADocsRepo) :
     # ==============================================================================
     # Lista de cosas en s3
     # ==============================================================================
-    def s3_object_list( self ) :
+    def list(self, json_data: str)  -> {dict, int} :
         http_code = 409
         data = {}
         m1 = time.monotonic_ns()
@@ -422,10 +339,3 @@ class Aws(ADocsRepo) :
         diff = time.monotonic() - m1
         logging.info("[Docs] AWS Time S3 Docs Response in " + str(diff) + " sec." )
         return element, code_http
-
-    def calculate_md5(self, data_bytes):
-        if data_bytes is None:
-            return None
-        md5_hash = hashlib.md5()
-        md5_hash.update(data_bytes)
-        return md5_hash.hexdigest()

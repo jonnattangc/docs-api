@@ -24,6 +24,7 @@ class ApiDocs (ADocsRepo) :
     pdf_manager = None
     pdf_path = None
     def __init__(self, root_dir : str = str(ROOT_DIR)) :
+        super().__init__()
         try:
             self.pdf_path = root_dir + '/static/docs'
 
@@ -64,6 +65,14 @@ class ApiDocs (ADocsRepo) :
 
     def get_implementation_name(self) -> str:
         return f"ApiDocs(v1.0.0)"
+
+    def search(self, json_data: str)  -> {dict, int} :
+        response = {"data": None, "message" : 'Not found' }
+        return response, 404
+    
+    def list(self, json_data: str)  -> {dict, int} :
+        response = {"data": None, "message" : 'Not found' }
+        return response, 404
 
     def pdf_to_text(self, file_path: str ):
         http_code  = 200

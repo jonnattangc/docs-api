@@ -33,6 +33,7 @@ class DriverDocs(ADocsRepo) :
     com_folder_id: str = None
 
     def __init__(self) :
+        super().__init__()
         try:
             self.root_dir = ROOT_DIR
             self.credential_file = str(os.environ.get('GOOGLE_CREDENTIALS_JSON', None))
@@ -75,27 +76,36 @@ class DriverDocs(ADocsRepo) :
         http_code  = 200
         message = None
         try:
+            logging.info("Credentials file exist verify: " + str(self.credential_file) )
             if os.path.exists(self.credential_file):
-                # os.chmod(self.credential_file, 0o755)
                 logging.info("Credentials file exist: " + str(self.credential_file) )
             else:
                 raise Exception("Credentials file not exist: " + str(self.credential_file) )
+            logging.info("Seteando client_config_file: " + str(self.credential_file) )
             GoogleAuth.DEFAULT_SETTINGS['client_config_file'] = self.credential_file
+            logging.info("Archivo de credenciales seteado OK" )
             gauth = GoogleAuth()
+            logging.info("Cargo archivo de credenciales... ")
             gauth.LoadCredentialsFile(self.credential_file)
+            logging.info("Cargado OK" )
             if gauth.credentials is None:
-                logging.info("Create access token" )
+                logging.info("Create access token..." )
                 resp = gauth.LocalWebserverAuth()
-                logging.info("Access token created Ok..." )
+                logging.info("Access token created OK" )
+                logging.info("Save new credentials..." )
+                gauth.SaveCredentialsFile(self.credential_file)
+                logging.info("Saved OK" )
             elif gauth.access_token_expired:
                 logging.info("Refresh token" )
                 gauth.Refresh()
-                logging.info("token refreshed Ok..." )
+                logging.info("token refreshed OK" )
+                logging.info("Save new credentials (refresh)..." )
+                gauth.SaveCredentialsFile(self.credential_file)
+                logging.info("Saved OK" )
             else:
                 logging.info("Auth Ok" )
                 gauth.Authorize()
                 message = "Authentication Ok..."
-            gauth.SaveCredentialsFile(self.credential_file)
             credentials = GoogleDrive(gauth)
         except Exception as e :
            print("ERROR login(): ", e)
@@ -129,11 +139,12 @@ class DriverDocs(ADocsRepo) :
             grade = '-'
         return grade
 
-    def list_files (self, json_data ) :
+    def list(self, json_data: str)  -> {dict, int} :
         msg = 'Servicio ejecutado correctamente'
         code = 200
         files = []
         try:
+            logging.info('json_data: ' + str(json_data))
             #folder_query = '("{}" in parents or "{}" in parents or "{}" in parents)'.format(self.apr_folder_id, self.mae_folder_id, self.com_folder_id)
             folder_query = '('
             folders = json_data["folders"]
@@ -181,14 +192,19 @@ class DriverDocs(ADocsRepo) :
            files = []
         return msg, code, files
 
-    def search_file (self, json_data ) :
+    def search(self, json_data: str)  -> {dict, int} :
         msg = 'Servicio ejecutado correctamente'
         code = 200
         files = []
+        response = {}
         try:
             drive, code, error_msg = self.login()
             if code != 200 :
-                return error_msg, code, files
+                response = {
+                    'msg': error_msg,
+                    'files': files
+                }
+                return response, code
             
             folder_id : str = json_data["folder_id"]
             query = "'{}' in parents".format(folder_id)
@@ -223,7 +239,13 @@ class DriverDocs(ADocsRepo) :
            code = 500
            msg = str(e)
            files = []
-        return msg, code, files
+        
+        response = {
+            'msg': msg,
+            'files': files
+        }
+
+        return response, code
 
     def read_file (self, json_data ) :
         msg = 'Servicio ejecutado correctamente'
@@ -325,12 +347,8 @@ class DriverDocs(ADocsRepo) :
                 credentials, http_code, message = self.login()
                 message = str(credentials.GetAbout()['name']) + ' ' + str(message)
                 logging.info("Login Name: " + str(credentials.GetAbout()['name']) + ' language: ' + str(credentials.GetAbout()['languageCode']) )
-            if str(subpath).find('list') >= 0 :
-               message, http_code, data_response = self.list_files(json_data)
             if str(subpath).find('read') >= 0 :
                message, http_code, data_response = self.read_file(json_data)
-            if str(subpath).find('search') >= 0 :
-               message, http_code, data_response = self.search_file(json_data)
         elif method == 'GET' :
             if str(subpath).find('read') >= 0 :
                message, http_code, data_response = self.read_file(json_data)
@@ -340,9 +358,3 @@ class DriverDocs(ADocsRepo) :
     def get_implementation_name(self) -> str:
         return f"GoogleDrive(v1.0.0)"
     
-    def calculate_md5(self, data_bytes):
-        if data_bytes is None:
-            return None
-        md5_hash = hashlib.md5()
-        md5_hash.update(data_bytes)
-        return md5_hash.hexdigest()

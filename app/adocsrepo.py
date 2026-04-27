@@ -5,6 +5,7 @@ try:
     import json
     from cipher import Cipher
     from abc import ABC, abstractmethod
+    import hashlib
 
 except ImportError:
     logging.error(ImportError)
@@ -32,6 +33,14 @@ class ADocsRepo(ABC):
     def process(self, subpath: str, json_data: str, method: str)  -> {dict, int} :
         pass
     
+    @abstractmethod
+    def search(self, json_data: str)  -> {dict, int} :
+        pass
+
+    @abstractmethod
+    def list(self, json_data: str)  -> {dict, int} :
+        pass
+
     def evaluate_request(self, request, subpath: str)  -> {dict, int} :
         request_type = None
         data_rx = None
@@ -49,6 +58,7 @@ class ADocsRepo(ABC):
 
         rx_api_key = request.headers.get('x-api-key')
         if rx_api_key == None :
+            logging.info("No Header 'x-api-key'")
             return  response, http_code
         if str(rx_api_key) != str(self.api_key) :
             logging.error(f"API Key: {rx_api_key} != {self.api_key}" )
@@ -79,6 +89,12 @@ class ADocsRepo(ABC):
         
         logging.info("JSON Data: " + str(json_data) )
 
+        if json_data != None and str(path).find('/search') > -1 and request.method == 'POST' :
+            return self.search( json_data )
+        
+        if str(path).find('/list') > -1 :
+            return self.list( json_data )
+
         return self.process( path, json_data, str(request.method) )
 
 
@@ -88,3 +104,10 @@ class ADocsRepo(ABC):
 
     def __str__(self):
         return f"'{self.get_implementation_name()}' "
+
+    def calculate_md5(self, data_bytes):
+        if data_bytes is None:
+            return None
+        md5_hash = hashlib.md5()
+        md5_hash.update(data_bytes)
+        return md5_hash.hexdigest()
