@@ -47,7 +47,7 @@ class DriverRepo(ADocsRepo) :
                 service_account_file, scopes=self.SCOPES
             )
             self.service = build('drive', 'v3', credentials=credentials, cache_discovery=False)
-            
+
             work_dir = str(os.environ.get('DOCS_WORK_DIR','None'))
             if work_dir != None :
                 self.docs_folder = ROOT_DIR + work_dir
@@ -288,6 +288,7 @@ class DriverRepo(ADocsRepo) :
                 while not done :
                     _, done = downloader.next_chunk()
                 flbytes = fh.getvalue()
+                logging.info("###### Se descargo el archivo, ahora lo guardo en " + str(path_file) )
                 with open(path_file, "wb") as pdf_file:
                     pdf_file.write(flbytes)
                 md5_calculated = self.calculate_md5(flbytes)
