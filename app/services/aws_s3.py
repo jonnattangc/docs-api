@@ -19,10 +19,10 @@ except ImportError:
 
 
 class Aws(ADocsRepo):
-    access_key: str = os.environ.get('AWS_ACCESS_KEY', 'None')
-    secret_key: str = os.environ.get('AWS_SECRET_KEY', 'None')
+    access_key: str = os.environ.get('AWS_ACCESS_KEY_ID', 'None')
+    secret_key: str = os.environ.get('AWS_SECRET_ACCESS_KEY', 'None')
     aws_bucket: str = os.environ.get('AWS_BUCKET_NAME', 'None')
-    aws_region: str = os.environ.get('AWS_REGION', 'us-east-1')
+    aws_region: str = os.environ.get('AWS_DEFAULT_REGION', 'us-east-1')
     s3_resource = None
     s3 = None
 
