@@ -2,7 +2,7 @@ services:
     docs-api:
       container_name: docs-api
       # Crea la imagen con el archivo Dockerfile de esta misma carpeta
-      image: docs-img:1.0
+      image: docs-img:prd
       build:
         context: .
         dockerfile: Dockerfile
@@ -19,6 +19,6 @@ services:
         - ../envs/file_docs.env
       networks:
         - db-net
-      command: tail -f /home/jonnattan/app/http-server.py
+      # command: tail -f /home/jonnattan/app/http-server.py
 networks:
   db-net:
