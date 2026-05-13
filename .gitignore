@@ -14,6 +14,8 @@ app/static/image/*.jpg
 app/static/docs/*.pdf
 app/static/docs/*.docx
 app/static/docs/*.png
+app/credential-logia.json
+CLAUDE.md 
 
 # C extensions
 *.so
